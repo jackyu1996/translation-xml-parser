@@ -3,16 +3,24 @@ use quick_xml::Reader;
 use std::fs::File;
 use std::io::BufReader;
 
+use crate::get_attribute;
+
 pub struct XliffFile {
     pub path: String,
     pub src_language: String,
     pub tgt_language: String,
-    pub trans_units: Vec<TransUnit>,
+    pub xfiles: Vec<XFile>,
     reader: Reader<BufReader<File>>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
+pub struct XFile {
+    pub trans_units: Vec<TransUnit>,
+}
+
+#[derive(Debug, Default)]
 pub struct TransUnit {
+    pub id: String,
     pub source: String,
     pub target: String,
     pub notes: Vec<String>,
@@ -31,57 +39,68 @@ impl XliffFile {
             path: path,
             src_language: String::new(),
             tgt_language: String::new(),
-            trans_units: Vec::new(),
+            xfiles: Vec::new(),
             reader: file_reader,
         };
     }
 
     pub fn parse(&mut self) {
-        let mut trans_unit = TransUnit {
-            source: String::new(),
-            target: String::new(),
-            notes: Vec::new(),
-        };
-
+        let mut cur_xfile = XFile::default();
+        let mut cur_trans_unit = TransUnit::default();
+        let mut cur_src_or_tgt = Vec::new();
         let mut buf = Vec::new();
 
         loop {
             match self.reader.read_event(&mut buf) {
                 Ok(Event::Start(ref e)) => match e.name() {
-                    //b"file" => {
-                    //let attrs: Vec<String> = e
-                    //.attributes()
-                    //.map(|a| {
-                    //String::from_utf8(
-                    //a.unwrap().value.into_owned(),
-                    //)
-                    //.unwrap()
-                    //})
-                    //.collect();
-                    //println!("{:?}", attrs)
-                    //}
-                    b"trans-unit" => {
-                        if !trans_unit.source.is_empty() && !trans_unit.target.is_empty() {
-                            self.trans_units.push(trans_unit);
+                    b"file" => {
+                        self.src_language = get_attribute(e, "source-language");
+                        self.tgt_language = get_attribute(e, "target-language");
+
+                        if cur_xfile.trans_units.len() != 0 {
+                            self.xfiles.push(cur_xfile);
                         }
 
-                        trans_unit = TransUnit {
+                        cur_xfile = XFile::default();
+                    }
+                    b"trans-unit" => {
+                        if !cur_trans_unit.id.is_empty()
+                            && !cur_trans_unit.source.is_empty()
+                            && !cur_trans_unit.target.is_empty()
+                        {
+                            cur_xfile.trans_units.push(cur_trans_unit);
+                        }
+
+                        cur_trans_unit = TransUnit {
+                            id: get_attribute(e, "id"),
                             source: String::new(),
                             target: String::new(),
                             notes: Vec::new(),
                         };
                     }
                     b"source" => {
-                        trans_unit.source =
-                            self.reader.read_text(e.name(), &mut Vec::new()).unwrap();
+                        if !cur_trans_unit.source.is_empty() {
+                            cur_trans_unit.source = cur_src_or_tgt.to_owned().into_iter().collect();
+                        };
+                        cur_src_or_tgt.clear();
+                        cur_src_or_tgt
+                            .push(self.reader.read_text(e.name(), &mut Vec::new()).unwrap());
+                    }
+                    b"bx" | b"ex" | b"bpt" | b"ept" | b"mrk" => {
+                        cur_src_or_tgt
+                            .push(self.reader.read_text(e.name(), &mut Vec::new()).unwrap());
                     }
                     b"target" => {
-                        trans_unit.target =
-                            self.reader.read_text(e.name(), &mut Vec::new()).unwrap();
+                        if !cur_trans_unit.target.is_empty() {
+                            cur_trans_unit.target = cur_src_or_tgt.to_owned().into_iter().collect();
+                        };
+                        cur_src_or_tgt.clear();
+                        cur_src_or_tgt
+                            .push(self.reader.read_text(e.name(), &mut Vec::new()).unwrap());
                     }
                     b"note" => {
                         let note = self.reader.read_text(e.name(), &mut Vec::new()).unwrap();
-                        trans_unit.notes.push(note);
+                        cur_trans_unit.notes.push(note);
                     }
                     _ => (),
                 },
