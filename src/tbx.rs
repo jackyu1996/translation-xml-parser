@@ -1,106 +1,88 @@
-use quick_xml::events::Event;
-use quick_xml::Reader;
-use std::fs::File;
-use std::io::BufReader;
+use roxmltree::Document;
 
+#[derive(Debug)]
 pub struct TbxFile {
     pub path: String,
     pub term_entries: Vec<TermEntry>,
-    reader: Reader<BufReader<File>>,
+    raw_content: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct TermEntry {
     pub lang_sets: Vec<LangSet>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct LangSet {
     pub language: String,
     pub tigs: Vec<Tig>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Tig {
     pub term: String,
+    pub description: String,
 }
 
 impl TbxFile {
     pub fn new(path: String) -> TbxFile {
-        let read_result = Reader::from_file(&path);
-
-        let file_reader = match read_result {
-            Ok(file) => file,
-            Err(e) => panic!("Failed to open file: {:?}", e),
-        };
+        let content = crate::read_file(&path);
 
         return TbxFile {
             path: path,
             term_entries: Vec::new(),
-            reader: file_reader,
+            raw_content: content,
         };
     }
 
     pub fn parse(&mut self) {
-        let mut term_entry = TermEntry {
-            lang_sets: Vec::new(),
-        };
-        let mut lang_set = LangSet {
-            language: String::new(),
-            tigs: Vec::new(),
-        };
-        let mut tig = Tig {
-            term: String::new(),
-        };
+        let mut cur_term_entry = TermEntry::default();
+        let mut cur_lang_set = LangSet::default();
+        let mut cur_tig = Tig::default();
 
-        let mut buf = Vec::new();
+        let doc = Document::parse(&self.raw_content).unwrap();
 
-        loop {
-            match self.reader.read_event(&mut buf) {
-                Ok(Event::Start(ref e)) => match e.name() {
-                    b"termEntry" => {
-                        if term_entry.lang_sets.len() != 0 {
-                            self.term_entries.push(term_entry);
-                        };
-
-                        term_entry = TermEntry {
-                            lang_sets: Vec::new(),
-                        };
+        for node in doc.descendants() {
+            match node.tag_name().name() {
+                "termEntry" => {
+                    if cur_term_entry.lang_sets.len() != 0 {
+                        self.term_entries.push(cur_term_entry);
+                        cur_term_entry = TermEntry::default();
                     }
-                    b"langSet" => {
-                        if lang_set.tigs.len() != 0 {
-                            term_entry.lang_sets.push(lang_set);
-                        }
-
-                        lang_set = LangSet {
-                            language: String::new(),
-                            tigs: Vec::new(),
-                        }
+                }
+                "langSet" => {
+                    if cur_lang_set.tigs.len() != 0 {
+                        cur_term_entry.lang_sets.push(cur_lang_set);
+                        cur_lang_set = LangSet::default();
                     }
-                    b"tig" => {
-                        if !tig.term.is_empty() {
-                            lang_set.tigs.push(tig);
-                        }
-
-                        tig = Tig {
-                            term: String::new(),
-                        }
+                    cur_lang_set.language = node
+                        .attribute(("http://www.w3.org/XML/1998/namespace", "lang"))
+                        .unwrap()
+                        .to_string();
+                }
+                "tig" => {
+                    if !cur_tig.term.is_empty() {
+                        cur_lang_set.tigs.push(cur_tig);
+                        cur_tig = Tig::default();
                     }
-                    b"term" => {
-                        let term = self.reader.read_text(e.name(), &mut Vec::new()).unwrap();
-                        tig.term = term;
-                    }
-                    _ => (),
-                },
-                Ok(Event::Eof) => break,
-                Err(e) => panic!(
-                    "Error at position {}: {:?}",
-                    self.reader.buffer_position(),
-                    e
-                ),
+                }
+                "term" => {
+                    cur_tig.term = crate::get_children_text(node).concat();
+                }
+                "descrip" => {
+                    cur_tig.description = crate::get_children_text(node).concat();
+                }
                 _ => (),
             }
-            buf.clear();
         }
+    }
+}
+
+mod tests {
+    #[test]
+    fn it_works() {
+        let mut t = crate::tbx::TbxFile::new("./tests/lancom.tbx".to_string());
+        t.parse();
+        assert!(1 != 2);
     }
 }

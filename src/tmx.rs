@@ -1,90 +1,74 @@
-use quick_xml::events::Event;
-use quick_xml::Reader;
-use std::fs::File;
-use std::io::BufReader;
+use roxmltree::Document;
 
+#[derive(Debug)]
 pub struct TmxFile {
     pub path: String,
     pub tus: Vec<TU>,
-    reader: Reader<BufReader<File>>,
+    raw_content: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct TU {
+    pub tuid: String,
     pub tuvs: Vec<TUV>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct TUV {
-    pub src_language: String,
-    pub tgt_language: String,
+    pub language: String,
     pub seg: String,
 }
 
 impl TmxFile {
     pub fn new(path: String) -> TmxFile {
-        let read_result = Reader::from_file(&path);
-
-        let file_reader = match read_result {
-            Ok(file) => file,
-            Err(e) => panic!("Failed to open file: {:?}", e),
-        };
+        let content = crate::read_file(&path);
 
         return TmxFile {
-            path: path,
+            path: path.to_string(),
             tus: Vec::new(),
-            reader: file_reader,
+            raw_content: content,
         };
     }
 
     pub fn parse(&mut self) {
-        let mut tu = TU { tuvs: Vec::new() };
+        let mut cur_tu = TU::default();
+        let mut cur_tuv = TUV::default();
 
-        let mut tuv = TUV {
-            src_language: String::new(),
-            tgt_language: String::new(),
-            seg: String::new(),
-        };
+        let doc = Document::parse(&self.raw_content).unwrap();
 
-        let mut buf = Vec::new();
-
-        loop {
-            match self.reader.read_event(&mut buf) {
-                Ok(Event::Start(ref e)) => match e.name() {
-                    b"tu" => {
-                        if tu.tuvs.len() != 0 {
-                            self.tus.push(tu);
-                        }
-                        tu = TU { tuvs: Vec::new() }
+        for node in doc.descendants() {
+            match node.tag_name().name() {
+                "tu" => {
+                    if cur_tu.tuvs.len() != 0 {
+                        self.tus.push(cur_tu);
+                        cur_tu = TU::default();
                     }
-                    b"tuv" => {
-                        if !tuv.src_language.is_empty()
-                            && !tuv.tgt_language.is_empty()
-                            && !tuv.seg.is_empty()
-                        {
-                            tu.tuvs.push(tuv);
-                        }
-
-                        tuv = TUV {
-                            src_language: String::new(),
-                            tgt_language: String::new(),
-                            seg: String::new(),
-                        };
+                    cur_tu.tuid = node.attribute("tuid").unwrap().to_string();
+                }
+                "tuv" => {
+                    if !cur_tuv.seg.is_empty() {
+                        cur_tu.tuvs.push(cur_tuv);
+                        cur_tuv = TUV::default();
                     }
-                    b"seg" => {
-                        tuv.seg = self.reader.read_text(e.name(), &mut Vec::new()).unwrap();
-                    }
-                    _ => (),
-                },
-                Ok(Event::Eof) => break,
-                Err(e) => panic!(
-                    "Error at position {}: {:?}",
-                    self.reader.buffer_position(),
-                    e
-                ),
+                    cur_tuv.language = node
+                        .attribute(("http://www.w3.org/XML/1998/namespace", "lang"))
+                        .unwrap()
+                        .to_string();
+                }
+                "seg" => {
+                    cur_tuv.seg = crate::get_children_text(node).concat();
+                }
                 _ => (),
             }
-            buf.clear();
         }
+    }
+}
+
+mod tests {
+    #[test]
+    fn it_works() {
+        let mut t = crate::tmx::TmxFile::new("./tests/CITIC.tmx".to_string());
+        t.parse();
+        assert!(1 != 2);
     }
 }
