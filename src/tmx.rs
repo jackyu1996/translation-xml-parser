@@ -36,37 +36,28 @@ impl TmxFile {
 
         let doc = Document::parse(&self.raw_content).unwrap();
 
-        for node in doc.descendants() {
-            match node.tag_name().name() {
-                "tu" => {
-                    if cur_tu.tuvs.len() != 0 {
-                        self.tus.push(cur_tu);
-                        cur_tu = TU::default();
-                    }
-                    cur_tu.tuid = node.attribute("tuid").unwrap().to_string();
+        for node in doc.descendants().filter(|n| n.tag_name().name() == "tu") {
+            cur_tu.tuid = node.attribute("tuid").unwrap().to_string();
+            for tuv in node.children().filter(|n| n.tag_name().name() == "tuv") {
+                cur_tuv.language = tuv
+                    .attribute(("http://www.w3.org/XML/1998/namespace", "lang"))
+                    .unwrap()
+                    .to_string();
+                for seg in tuv.children().filter(|n| n.tag_name().name() == "seg") {
+                    cur_tuv.seg = crate::get_children_text(seg).concat();
                 }
-                "tuv" => {
-                    if !cur_tuv.seg.is_empty() {
-                        cur_tu.tuvs.push(cur_tuv);
-                        cur_tuv = TUV::default();
-                    }
-                    cur_tuv.language = node
-                        .attribute(("http://www.w3.org/XML/1998/namespace", "lang"))
-                        .unwrap()
-                        .to_string();
-                }
-                "seg" => {
-                    cur_tuv.seg = crate::get_children_text(node).concat();
-                }
-                _ => (),
+                cur_tu.tuvs.push(cur_tuv);
+                cur_tuv = TUV::default();
             }
+            self.tus.push(cur_tu);
+            cur_tu = TU::default();
         }
     }
 }
 
 mod tests {
     #[test]
-    fn it_works() {
+    fn dummy_for_debug() {
         let mut t = crate::tmx::TmxFile::new("./tests/CITIC.tmx".to_string());
         t.parse();
         assert!(1 != 2);

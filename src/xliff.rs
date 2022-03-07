@@ -38,38 +38,31 @@ impl XliffFile {
 
         let doc = Document::parse(&self.raw_content).unwrap();
 
-        for node in doc.descendants() {
-            match node.tag_name().name() {
-                "file" => {
-                    if cur_xfile.trans_units.len() != 0 {
-                        self.xfiles.push(cur_xfile);
-                        cur_xfile = XFile::default();
-                    }
-                    cur_xfile.src_language = node.attribute("source-language").unwrap().to_string();
-                    cur_xfile.tgt_language = node.attribute("target-language").unwrap().to_string();
-                }
-                "trans-unit" => {
-                    if cur_trans_unit.id != ""
-                        && cur_trans_unit.source != ""
-                        && cur_trans_unit.target != ""
-                    {
-                        cur_xfile.trans_units.push(cur_trans_unit);
-                        cur_trans_unit = TransUnit::default();
-                    }
-                    cur_trans_unit.id = node.attribute("id").unwrap().to_string()
-                }
-                "source" => {
-                    if node.parent().unwrap().tag_name().name() == "trans-unit" {
-                        cur_trans_unit.source = crate::get_children_text(node).concat();
+        for file in doc.descendants().filter(|n| n.tag_name().name() == "file") {
+            cur_xfile.src_language = file.attribute("source-language").unwrap().to_string();
+            cur_xfile.tgt_language = file.attribute("target-language").unwrap().to_string();
+
+            for unit in file
+                .descendants()
+                .filter(|n| n.tag_name().name() == "trans-unit")
+            {
+                cur_trans_unit.id = unit.attribute("id").unwrap().to_string();
+                for value in unit.children() {
+                    match value.tag_name().name() {
+                        "source" => {
+                            cur_trans_unit.source = crate::get_children_text(value).concat()
+                        }
+                        "target" => {
+                            cur_trans_unit.target = crate::get_children_text(value).concat()
+                        }
+                        _ => (),
                     }
                 }
-                "target" => {
-                    if node.parent().unwrap().tag_name().name() == "trans-unit" {
-                        cur_trans_unit.target = crate::get_children_text(node).concat();
-                    }
-                }
-                _ => (),
+                cur_xfile.trans_units.push(cur_trans_unit);
+                cur_trans_unit = TransUnit::default();
             }
+            self.xfiles.push(cur_xfile);
+            cur_xfile = XFile::default();
         }
     }
 }
@@ -77,7 +70,7 @@ impl XliffFile {
 #[cfg(test)]
 mod tests {
     #[test]
-    fn it_works() {
+    fn dummy_for_debug() {
         let mut t = crate::xliff::XliffFile::new("./tests/sul.txlf".to_string());
         t.parse();
         assert!(1 != 2);

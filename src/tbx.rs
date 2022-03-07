@@ -15,13 +15,12 @@ pub struct TermEntry {
 #[derive(Debug, Default)]
 pub struct LangSet {
     pub language: String,
-    pub tigs: Vec<Tig>,
+    pub terms: Vec<Term>,
 }
 
 #[derive(Debug, Default)]
-pub struct Tig {
+pub struct Term {
     pub term: String,
-    pub description: String,
 }
 
 impl TbxFile {
@@ -38,41 +37,27 @@ impl TbxFile {
     pub fn parse(&mut self) {
         let mut cur_term_entry = TermEntry::default();
         let mut cur_lang_set = LangSet::default();
-        let mut cur_tig = Tig::default();
+        let mut cur_term = Term::default();
 
         let doc = Document::parse(&self.raw_content).unwrap();
 
-        for node in doc.descendants() {
-            match node.tag_name().name() {
-                "termEntry" => {
-                    if cur_term_entry.lang_sets.len() != 0 {
-                        self.term_entries.push(cur_term_entry);
-                        cur_term_entry = TermEntry::default();
-                    }
-                }
-                "langSet" => {
-                    if cur_lang_set.tigs.len() != 0 {
-                        cur_term_entry.lang_sets.push(cur_lang_set);
-                        cur_lang_set = LangSet::default();
-                    }
-                    cur_lang_set.language = node
+        for node in doc.descendants().filter(|n| n.tag_name().name() == "body") {
+            for te in node.children() {
+                for ls in te.children().filter(|n| n.tag_name().name() == "langSet") {
+                    cur_lang_set.language = ls
                         .attribute(("http://www.w3.org/XML/1998/namespace", "lang"))
                         .unwrap()
                         .to_string();
-                }
-                "tig" => {
-                    if !cur_tig.term.is_empty() {
-                        cur_lang_set.tigs.push(cur_tig);
-                        cur_tig = Tig::default();
+                    for term in ls.descendants().filter(|n| n.tag_name().name() == "term") {
+                        cur_term.term = crate::get_children_text(term).concat();
+                        cur_lang_set.terms.push(cur_term);
+                        cur_term = Term::default();
                     }
+                    cur_term_entry.lang_sets.push(cur_lang_set);
+                    cur_lang_set = LangSet::default();
                 }
-                "term" => {
-                    cur_tig.term = crate::get_children_text(node).concat();
-                }
-                "descrip" => {
-                    cur_tig.description = crate::get_children_text(node).concat();
-                }
-                _ => (),
+                self.term_entries.push(cur_term_entry);
+                cur_term_entry = TermEntry::default();
             }
         }
     }
@@ -80,7 +65,7 @@ impl TbxFile {
 
 mod tests {
     #[test]
-    fn it_works() {
+    fn dummy_for_debug() {
         let mut t = crate::tbx::TbxFile::new("./tests/lancom.tbx".to_string());
         t.parse();
         assert!(1 != 2);
