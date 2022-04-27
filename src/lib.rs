@@ -10,14 +10,15 @@ pub fn get_children_text<'a>(node: Node<'a, '_>) -> Vec<&'a str> {
     return node
         .children()
         .filter(|n| n.is_text())
-        .map(|n| n.text().unwrap())
+        .map(|n| n.text().expect("Cannot read segment text!")) // Which segment should be clarified.
         .collect::<Vec<&str>>();
 }
 
 pub fn read_file(path: &str) -> String {
-    let mut file = File::open(path).unwrap();
+    let mut file = File::open(path).expect("Cannot read input file!");
     let mut content = String::new();
-    file.read_to_string(&mut content).unwrap();
+    file.read_to_string(&mut content)
+        .expect("Cannot read file to a string!");
 
     return content;
 }

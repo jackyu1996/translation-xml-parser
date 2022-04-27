@@ -36,7 +36,7 @@ impl XliffFile {
         let mut cur_xfile = XFile::default();
         let mut cur_trans_unit = TransUnit::default();
 
-        let doc = Document::parse(&self.raw_content).unwrap();
+        let doc = Document::parse(&self.raw_content).expect("Failed to parse Xliff File!");
 
         for file in doc.descendants().filter(|n| n.tag_name().name() == "file") {
             cur_xfile.src_language = file.attribute("source-language").unwrap().to_string();
