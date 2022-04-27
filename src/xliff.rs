@@ -1,4 +1,6 @@
 use roxmltree::Document;
+use std::io::prelude::*;
+use zip;
 
 #[derive(Debug)]
 pub struct XliffFile {
@@ -64,6 +66,29 @@ impl XliffFile {
             self.xfiles.push(cur_xfile);
             cur_xfile = XFile::default();
         }
+    }
+
+    pub fn read_from_xlz(path: String) -> XliffFile {
+        let xlzfile = std::fs::File::open(&path).expect("Cannot open xlz file!");
+
+        let mut archive = zip::ZipArchive::new(xlzfile).expect("Invalid xlz file!");
+
+        let mut file = match archive.by_name("content.xlf") {
+            Ok(file) => file,
+            Err(_) => {
+                panic!("content.xlf not found in xlz file")
+            }
+        };
+
+        let mut contents = String::new();
+
+        file.read_to_string(&mut contents).unwrap();
+
+        return XliffFile {
+            path: path,
+            xfiles: Vec::new(),
+            raw_content: contents,
+        };
     }
 }
 
