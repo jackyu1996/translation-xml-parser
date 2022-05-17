@@ -24,11 +24,11 @@ pub struct TransUnit {
 }
 
 impl XliffFile {
-    pub fn new(path: String) -> XliffFile {
-        let content = crate::read_file(&path);
+    pub fn new(path: &str) -> XliffFile {
+        let content = crate::read_file(path);
 
         return XliffFile {
-            path: path,
+            path: path.to_owned(),
             xfiles: Vec::new(),
             raw_content: content,
         };
@@ -68,7 +68,7 @@ impl XliffFile {
         }
     }
 
-    pub fn read_from_xlz(path: String) -> XliffFile {
+    pub fn read_from_xlz(path: &str) -> XliffFile {
         let xlzfile = std::fs::File::open(&path).expect("Cannot open xlz file!");
 
         let mut archive = zip::ZipArchive::new(xlzfile).expect("Invalid xlz file!");
@@ -85,7 +85,7 @@ impl XliffFile {
         file.read_to_string(&mut contents).unwrap();
 
         return XliffFile {
-            path: path,
+            path: path.to_owned(),
             xfiles: Vec::new(),
             raw_content: contents,
         };
