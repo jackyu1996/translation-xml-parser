@@ -34,14 +34,17 @@ impl TmxFile {
         let mut cur_tu = TU::default();
         let mut cur_tuv = TUV::default();
 
-        let doc = Document::parse(&self.raw_content).unwrap();
+        let doc = Document::parse(&self.raw_content).expect("Failed to parse tmx file");
 
         for node in doc.descendants().filter(|n| n.tag_name().name() == "tu") {
-            cur_tu.tuid = node.attribute("tuid").unwrap().to_string();
+            cur_tu.tuid = node
+                .attribute("tuid")
+                .expect("No tuid attribute found")
+                .to_string();
             for tuv in node.children().filter(|n| n.tag_name().name() == "tuv") {
                 cur_tuv.language = tuv
                     .attribute(("http://www.w3.org/XML/1998/namespace", "lang"))
-                    .unwrap()
+                    .expect("No lang attribute found")
                     .to_string();
                 for seg in tuv.children().filter(|n| n.tag_name().name() == "seg") {
                     cur_tuv.seg = crate::get_children_text(seg).concat();

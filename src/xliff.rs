@@ -41,14 +41,23 @@ impl XliffFile {
         let doc = Document::parse(&self.raw_content).expect("Failed to parse Xliff File!");
 
         for file in doc.descendants().filter(|n| n.tag_name().name() == "file") {
-            cur_xfile.src_language = file.attribute("source-language").unwrap().to_string();
-            cur_xfile.tgt_language = file.attribute("target-language").unwrap().to_string();
+            cur_xfile.src_language = file
+                .attribute("source-language")
+                .expect("No source-language attribute found")
+                .to_string();
+            cur_xfile.tgt_language = file
+                .attribute("target-language")
+                .expect("No target-language attribute found")
+                .to_string();
 
             for unit in file
                 .descendants()
                 .filter(|n| n.tag_name().name() == "trans-unit")
             {
-                cur_trans_unit.id = unit.attribute("id").unwrap().to_string();
+                cur_trans_unit.id = unit
+                    .attribute("id")
+                    .expect("No id attribute found")
+                    .to_string();
                 for value in unit.children() {
                     match value.tag_name().name() {
                         "source" => {
@@ -82,7 +91,8 @@ impl XliffFile {
 
         let mut contents = String::new();
 
-        file.read_to_string(&mut contents).unwrap();
+        file.read_to_string(&mut contents)
+            .expect("Failed to read into a string");
 
         return XliffFile {
             path: path.to_owned(),

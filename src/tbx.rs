@@ -39,14 +39,14 @@ impl TbxFile {
         let mut cur_lang_set = LangSet::default();
         let mut cur_term = Term::default();
 
-        let doc = Document::parse(&self.raw_content).unwrap();
+        let doc = Document::parse(&self.raw_content).expect("Failed to parse tbx file");
 
         for node in doc.descendants().filter(|n| n.tag_name().name() == "body") {
             for te in node.children() {
                 for ls in te.children().filter(|n| n.tag_name().name() == "langSet") {
                     cur_lang_set.language = ls
                         .attribute(("http://www.w3.org/XML/1998/namespace", "lang"))
-                        .unwrap()
+                        .expect("No lang attribute found")
                         .to_string();
                     for term in ls.descendants().filter(|n| n.tag_name().name() == "term") {
                         cur_term.term = crate::get_children_text(term).concat();
