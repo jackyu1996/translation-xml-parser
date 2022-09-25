@@ -1,4 +1,6 @@
-use roxmltree::Document;
+use quick_xml::events::Event;
+use quick_xml::reader::Reader;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug)]
 pub struct TmxFile {
@@ -7,13 +9,13 @@ pub struct TmxFile {
     raw_content: String,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct TU {
     pub tuid: String,
     pub tuvs: Vec<TUV>,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct TUV {
     pub language: String,
     pub seg: String,
@@ -21,7 +23,7 @@ pub struct TUV {
 
 impl TmxFile {
     pub fn new(path: String) -> TmxFile {
-        let content = crate::read_file(&path);
+        let content = crate::read_xml(&path);
 
         return TmxFile {
             path: path.to_string(),
@@ -31,29 +33,46 @@ impl TmxFile {
     }
 
     pub fn parse(&mut self) {
+        let mut buf = Vec::new();
+
         let mut cur_tu = TU::default();
         let mut cur_tuv = TUV::default();
 
-        let doc = Document::parse(&self.raw_content).expect("Failed to parse tmx file");
+        let mut reader = Reader::from_str(&self.raw_content);
 
-        for node in doc.descendants().filter(|n| n.tag_name().name() == "tu") {
-            cur_tu.tuid = node
-                .attribute("tuid")
-                .expect("No tuid attribute found")
-                .to_string();
-            for tuv in node.children().filter(|n| n.tag_name().name() == "tuv") {
-                cur_tuv.language = tuv
-                    .attribute(("http://www.w3.org/XML/1998/namespace", "lang"))
-                    .expect("No lang attribute found")
-                    .to_string();
-                for seg in tuv.children().filter(|n| n.tag_name().name() == "seg") {
-                    cur_tuv.seg = crate::get_children_text(seg).concat();
-                }
-                cur_tu.tuvs.push(cur_tuv);
-                cur_tuv = TUV::default();
+        loop {
+            match reader.read_event_into(&mut buf) {
+                Err(e) => panic!("Error at position {}: {:?}", reader.buffer_position(), e),
+                Ok(Event::Start(e)) => match e.name().as_ref() {
+                    b"tu" => cur_tu.tuid = crate::get_attribute("tuid", &e, &reader),
+                    b"tuv" => {
+                        cur_tuv = TUV {
+                            language: crate::get_attribute("xml:lang", &e, &reader),
+                            seg: reader.read_text(e.name()).unwrap().into_owned(),
+                        };
+                    }
+                    _ => (),
+                },
+                Ok(Event::End(e)) => match e.name().as_ref() {
+                    b"tu" => {
+                        if cur_tu.tuvs.len() != 0 {
+                            self.tus.push(cur_tu);
+                        }
+
+                        cur_tu = TU::default();
+                    }
+                    b"tuv" => {
+                        if cur_tuv.seg != "" {
+                            cur_tu.tuvs.push(cur_tuv)
+                        }
+                        cur_tuv = TUV::default();
+                    }
+                    _ => (),
+                },
+                Ok(Event::Eof) => break,
+                _ => (),
             }
-            self.tus.push(cur_tu);
-            cur_tu = TU::default();
+            buf.clear()
         }
     }
 }

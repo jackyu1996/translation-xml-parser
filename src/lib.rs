@@ -1,20 +1,24 @@
 pub mod tbx;
 pub mod tmx;
 pub mod xliff;
+pub mod xlsx;
 
-use roxmltree::Node;
+use quick_xml::events::BytesStart;
+use quick_xml::reader::Reader;
 use std::fs::File;
 use std::io::Read;
 
-pub fn get_children_text<'a>(node: Node<'a, '_>) -> Vec<&'a str> {
-    return node
-        .children()
-        .filter(|n| n.is_text())
-        .map(|n| n.text().expect("Cannot read segment text!")) // Which segment should be clarified.
-        .collect::<Vec<&str>>();
+pub fn get_attribute(attribute_name: &str, start: &BytesStart, reader: &Reader<&[u8]>) -> String {
+    return start
+        .try_get_attribute(attribute_name)
+        .unwrap()
+        .unwrap()
+        .decode_and_unescape_value(reader)
+        .unwrap()
+        .into_owned();
 }
 
-pub fn read_file(path: &str) -> String {
+pub fn read_xml(path: &str) -> String {
     let mut file = File::open(path).expect("Cannot read input file!");
     let mut content = String::new();
     file.read_to_string(&mut content)

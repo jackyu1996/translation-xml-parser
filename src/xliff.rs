@@ -1,4 +1,7 @@
-use roxmltree::Document;
+use quick_xml::events::Event;
+use quick_xml::reader::Reader;
+use serde::{Deserialize, Serialize};
+
 use std::io::prelude::*;
 use zip;
 
@@ -9,14 +12,14 @@ pub struct XliffFile {
     raw_content: String,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct XFile {
     pub src_language: String,
     pub tgt_language: String,
     pub trans_units: Vec<TransUnit>,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct TransUnit {
     pub id: String,
     pub source: String,
@@ -25,7 +28,7 @@ pub struct TransUnit {
 
 impl XliffFile {
     pub fn new(path: &str) -> XliffFile {
-        let content = crate::read_file(path);
+        let content = crate::read_xml(path);
 
         return XliffFile {
             path: path.to_owned(),
@@ -35,45 +38,61 @@ impl XliffFile {
     }
 
     pub fn parse(&mut self) {
+        let mut buf = Vec::new();
+
         let mut cur_xfile = XFile::default();
         let mut cur_trans_unit = TransUnit::default();
+        let mut cur_source = String::new();
+        let mut cur_target = String::new();
 
-        let doc = Document::parse(&self.raw_content).expect("Failed to parse Xliff File!");
+        let mut reader = Reader::from_str(&self.raw_content);
 
-        for file in doc.descendants().filter(|n| n.tag_name().name() == "file") {
-            cur_xfile.src_language = file
-                .attribute("source-language")
-                .expect("No source-language attribute found")
-                .to_string();
-            cur_xfile.tgt_language = file
-                .attribute("target-language")
-                .expect("No target-language attribute found")
-                .to_string();
-
-            for unit in file
-                .descendants()
-                .filter(|n| n.tag_name().name() == "trans-unit")
-            {
-                cur_trans_unit.id = unit
-                    .attribute("id")
-                    .expect("No id attribute found")
-                    .to_string();
-                for value in unit.children() {
-                    match value.tag_name().name() {
-                        "source" => {
-                            cur_trans_unit.source = crate::get_children_text(value).concat()
-                        }
-                        "target" => {
-                            cur_trans_unit.target = crate::get_children_text(value).concat()
-                        }
-                        _ => (),
+        loop {
+            match reader.read_event_into(&mut buf) {
+                Err(e) => panic!("Error at position {}: {:?}", reader.buffer_position(), e),
+                Ok(Event::Start(e)) => match e.name().as_ref() {
+                    b"file" => {
+                        cur_xfile.src_language =
+                            crate::get_attribute("source-language", &e, &reader);
+                        cur_xfile.tgt_language =
+                            crate::get_attribute("target-language", &e, &reader)
                     }
-                }
-                cur_xfile.trans_units.push(cur_trans_unit);
-                cur_trans_unit = TransUnit::default();
+                    b"trans-unit" => cur_trans_unit.id = crate::get_attribute("id", &e, &reader),
+                    b"source" => cur_source = reader.read_text(e.name()).unwrap().into_owned(),
+                    b"target" => cur_target = reader.read_text(e.name()).unwrap().into_owned(),
+                    _ => (),
+                },
+                Ok(Event::End(e)) => match e.name().as_ref() {
+                    b"file" => {
+                        if cur_xfile.trans_units.len() != 0 {
+                            self.xfiles.push(cur_xfile);
+                        }
+                        cur_xfile = XFile::default();
+                    }
+                    b"trans-unit" => {
+                        if cur_trans_unit.source != "" && cur_trans_unit.target != "" {
+                            cur_xfile.trans_units.push(cur_trans_unit)
+                        }
+                        cur_trans_unit = TransUnit::default();
+                    }
+                    b"source" => {
+                        if cur_source != "" {
+                            cur_trans_unit.source = cur_source;
+                        }
+                        cur_source = String::new();
+                    }
+                    b"target" => {
+                        if cur_target != "" {
+                            cur_trans_unit.target = cur_target;
+                        }
+                        cur_target = String::new();
+                    }
+                    _ => (),
+                },
+                Ok(Event::Eof) => break,
+                _ => (),
             }
-            self.xfiles.push(cur_xfile);
-            cur_xfile = XFile::default();
+            buf.clear()
         }
     }
 
@@ -106,7 +125,7 @@ impl XliffFile {
 mod tests {
     #[test]
     fn dummy_for_debug() {
-        let mut t = crate::xliff::XliffFile::new("./tests/sul.txlf".to_string());
+        let mut t = crate::xliff::XliffFile::new(&"./tests/sul.txlf");
         t.parse();
         assert!(1 != 2);
     }

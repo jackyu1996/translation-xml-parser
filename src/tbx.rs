@@ -1,64 +1,105 @@
-use roxmltree::Document;
+use quick_xml::events::Event;
+use quick_xml::reader::Reader;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug)]
 pub struct TbxFile {
     pub path: String,
     pub term_entries: Vec<TermEntry>,
     raw_content: String,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct TermEntry {
+    #[serde(rename = "$value")]
     pub lang_sets: Vec<LangSet>,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct LangSet {
+    #[serde(rename = "$primitive=xml:lang")]
     pub language: String,
-    pub terms: Vec<Term>,
+    #[serde(rename = "$value")]
+    pub tig: Tig,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Serialize, Deserialize)]
+pub struct Tig {
+    #[serde(rename = "$value")]
+    pub term: Term,
+}
+
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct Term {
+    #[serde(rename = "$value")]
     pub term: String,
 }
 
 impl TbxFile {
     pub fn new(path: String) -> TbxFile {
-        let content = crate::read_file(&path);
+        let raw_content = crate::read_xml(&path);
 
         return TbxFile {
-            path: path,
+            path,
             term_entries: Vec::new(),
-            raw_content: content,
+            raw_content,
         };
     }
 
     pub fn parse(&mut self) {
+        let mut buf = Vec::new();
+
         let mut cur_term_entry = TermEntry::default();
         let mut cur_lang_set = LangSet::default();
+        let mut cur_tig = Tig::default();
         let mut cur_term = Term::default();
 
-        let doc = Document::parse(&self.raw_content).expect("Failed to parse tbx file");
+        let mut reader = Reader::from_str(&self.raw_content);
 
-        for node in doc.descendants().filter(|n| n.tag_name().name() == "body") {
-            for te in node.children() {
-                for ls in te.children().filter(|n| n.tag_name().name() == "langSet") {
-                    cur_lang_set.language = ls
-                        .attribute(("http://www.w3.org/XML/1998/namespace", "lang"))
-                        .expect("No lang attribute found")
-                        .to_string();
-                    for term in ls.descendants().filter(|n| n.tag_name().name() == "term") {
-                        cur_term.term = crate::get_children_text(term).concat();
-                        cur_lang_set.terms.push(cur_term);
+        loop {
+            match reader.read_event_into(&mut buf) {
+                Err(e) => panic!("Error at position {}: {:?}", reader.buffer_position(), e),
+                Ok(Event::Start(e)) => match e.name().as_ref() {
+                    b"langSet" => {
+                        cur_lang_set.language = crate::get_attribute("xml:lang", &e, &reader);
+                    }
+                    b"term" => {
+                        cur_term = Term {
+                            term: reader.read_text(e.name()).unwrap().into_owned(),
+                        };
+                    }
+                    _ => (),
+                },
+                Ok(Event::End(e)) => match e.name().as_ref() {
+                    b"termEntry" => {
+                        if cur_term_entry.lang_sets.len() != 0 {
+                            self.term_entries.push(cur_term_entry);
+                        }
+                        cur_term_entry = TermEntry::default();
+                    }
+                    b"langSet" => {
+                        if cur_lang_set.tig.term.term != "" {
+                            cur_term_entry.lang_sets.push(cur_lang_set);
+                        }
+                        cur_lang_set = LangSet::default();
+                    }
+                    b"tig" => {
+                        if cur_tig.term.term != "" {
+                            cur_lang_set.tig = cur_tig;
+                        }
+                        cur_tig = Tig::default();
+                    }
+                    b"term" => {
+                        if cur_term.term != "" {
+                            cur_tig.term = cur_term;
+                        }
                         cur_term = Term::default();
                     }
-                    cur_term_entry.lang_sets.push(cur_lang_set);
-                    cur_lang_set = LangSet::default();
-                }
-                self.term_entries.push(cur_term_entry);
-                cur_term_entry = TermEntry::default();
+                    _ => (),
+                },
+                Ok(Event::Eof) => break,
+                _ => (),
             }
+            buf.clear()
         }
     }
 }

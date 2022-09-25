@@ -6,5 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-roxmltree = "0.14.1"
-zip  = "0.6.2"
+serde = { version = "1.0.145", features = ["derive"] }
+quick-xml = { version = "0.25.0", features = ["serialize"] }
+zip = "0.6.2"
+calamine = "0.18.0"
