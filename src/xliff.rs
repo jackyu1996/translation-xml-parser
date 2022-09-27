@@ -42,8 +42,8 @@ impl XliffFile {
 
         let mut cur_xfile = XFile::default();
         let mut cur_trans_unit = TransUnit::default();
-        let mut cur_source = String::new();
-        let mut cur_target = String::new();
+        let mut cur_source;
+        let mut cur_target;
 
         let mut reader = Reader::from_str(&self.raw_content);
 
@@ -58,8 +58,18 @@ impl XliffFile {
                             crate::get_attribute("target-language", &e, &reader)
                     }
                     b"trans-unit" => cur_trans_unit.id = crate::get_attribute("id", &e, &reader),
-                    b"source" => cur_source = reader.read_text(e.name()).unwrap().into_owned(),
-                    b"target" => cur_target = reader.read_text(e.name()).unwrap().into_owned(),
+                    b"source" => {
+                        cur_source = reader.read_text(e.name()).unwrap().into_owned();
+                        if cur_source != "" {
+                            cur_trans_unit.source = cur_source;
+                        }
+                    }
+                    b"target" => {
+                        cur_target = reader.read_text(e.name()).unwrap().into_owned();
+                        if cur_target != "" {
+                            cur_trans_unit.target = cur_target;
+                        }
+                    }
                     _ => (),
                 },
                 Ok(Event::End(e)) => match e.name().as_ref() {
@@ -74,18 +84,6 @@ impl XliffFile {
                             cur_xfile.trans_units.push(cur_trans_unit)
                         }
                         cur_trans_unit = TransUnit::default();
-                    }
-                    b"source" => {
-                        if cur_source != "" {
-                            cur_trans_unit.source = cur_source;
-                        }
-                        cur_source = String::new();
-                    }
-                    b"target" => {
-                        if cur_target != "" {
-                            cur_trans_unit.target = cur_target;
-                        }
-                        cur_target = String::new();
                     }
                     _ => (),
                 },

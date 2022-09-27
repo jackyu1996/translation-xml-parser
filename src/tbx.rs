@@ -51,7 +51,7 @@ impl TbxFile {
         let mut cur_term_entry = TermEntry::default();
         let mut cur_lang_set = LangSet::default();
         let mut cur_tig = Tig::default();
-        let mut cur_term = Term::default();
+        let mut cur_term;
 
         let mut reader = Reader::from_str(&self.raw_content);
 
@@ -66,6 +66,9 @@ impl TbxFile {
                         cur_term = Term {
                             term: reader.read_text(e.name()).unwrap().into_owned(),
                         };
+                        if cur_term.term != "" {
+                            cur_tig.term = cur_term;
+                        }
                     }
                     _ => (),
                 },
@@ -87,12 +90,6 @@ impl TbxFile {
                             cur_lang_set.tig = cur_tig;
                         }
                         cur_tig = Tig::default();
-                    }
-                    b"term" => {
-                        if cur_term.term != "" {
-                            cur_tig.term = cur_term;
-                        }
-                        cur_term = Term::default();
                     }
                     _ => (),
                 },

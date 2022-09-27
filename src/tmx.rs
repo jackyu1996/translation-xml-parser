@@ -36,7 +36,7 @@ impl TmxFile {
         let mut buf = Vec::new();
 
         let mut cur_tu = TU::default();
-        let mut cur_tuv = TUV::default();
+        let mut cur_tuv;
 
         let mut reader = Reader::from_str(&self.raw_content);
 
@@ -50,6 +50,9 @@ impl TmxFile {
                             language: crate::get_attribute("xml:lang", &e, &reader),
                             seg: reader.read_text(e.name()).unwrap().into_owned(),
                         };
+                        if cur_tuv.seg != "" {
+                            cur_tu.tuvs.push(cur_tuv)
+                        }
                     }
                     _ => (),
                 },
@@ -60,12 +63,6 @@ impl TmxFile {
                         }
 
                         cur_tu = TU::default();
-                    }
-                    b"tuv" => {
-                        if cur_tuv.seg != "" {
-                            cur_tu.tuvs.push(cur_tuv)
-                        }
-                        cur_tuv = TUV::default();
                     }
                     _ => (),
                 },
