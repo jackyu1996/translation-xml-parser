@@ -44,11 +44,12 @@ impl TmxFile {
             match reader.read_event_into(&mut buf) {
                 Err(e) => panic!("Error at position {}: {:?}", reader.buffer_position(), e),
                 Ok(Event::Start(e)) => match e.name().as_ref() {
-                    b"tu" => cur_tu.tuid = crate::get_attribute("tuid", &e, &reader),
+                    b"tu" => cur_tu.tuid = crate::get_attribute(&reader, &e, "tuid"),
                     b"tuv" => {
                         cur_tuv = TUV {
-                            language: crate::get_attribute("xml:lang", &e, &reader),
+                            language: crate::get_attribute(&reader, &e, "xml:lang"),
                             seg: reader.read_text(e.name()).unwrap().into_owned(),
+                            // todo: consider parse this as inline too.
                         };
                         if cur_tuv.seg != "" {
                             cur_tu.tuvs.push(cur_tuv)

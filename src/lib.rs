@@ -8,7 +8,7 @@ use quick_xml::reader::Reader;
 use std::fs::File;
 use std::io::Read;
 
-pub fn get_attribute(attribute_name: &str, start: &BytesStart, reader: &Reader<&[u8]>) -> String {
+pub fn get_attribute(reader: &Reader<&[u8]>, start: &BytesStart, attribute_name: &str) -> String {
     return start
         .try_get_attribute(attribute_name)
         .unwrap()

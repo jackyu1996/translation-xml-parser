@@ -2,6 +2,7 @@ use std::{fs::File, io::BufReader};
 
 use calamine::{open_workbook, Reader, Xlsx};
 
+use crate::xliff::SegNode;
 use crate::xliff::TransUnit;
 
 pub struct TranslationXlsx {
@@ -34,11 +35,19 @@ impl TranslationXlsx {
         let _ = &trans_unit_rows.next(); // We skip the first row as headers
 
         for r in trans_unit_rows {
-            cur_trans_unit = TransUnit {
-                id: r.get(0).unwrap().get_string().unwrap().to_string(),
-                source: r.get(1).unwrap().get_string().unwrap().to_string(),
-                target: r.get(2).unwrap().get_string().unwrap().to_string(),
-            };
+            let id: String;
+            let mut source = Vec::new();
+            let mut target = Vec::new();
+
+            id = r.get(0).unwrap().get_string().unwrap().to_string();
+            source.push(SegNode::Text(
+                r.get(1).unwrap().get_string().unwrap().to_string(),
+            ));
+            target.push(SegNode::Text(
+                r.get(2).unwrap().get_string().unwrap().to_string(),
+            ));
+
+            cur_trans_unit = TransUnit { id, source, target };
             if cur_trans_unit.id != "" {
                 self.trans_units.push(cur_trans_unit)
             }

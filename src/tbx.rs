@@ -60,7 +60,7 @@ impl TbxFile {
                 Err(e) => panic!("Error at position {}: {:?}", reader.buffer_position(), e),
                 Ok(Event::Start(e)) => match e.name().as_ref() {
                     b"langSet" => {
-                        cur_lang_set.language = crate::get_attribute("xml:lang", &e, &reader);
+                        cur_lang_set.language = crate::get_attribute(&reader, &e, "xml:lang");
                     }
                     b"term" => {
                         cur_term = Term {
