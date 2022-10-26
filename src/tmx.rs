@@ -1,3 +1,4 @@
+use crate::SegNode;
 use quick_xml::events::Event;
 use quick_xml::reader::Reader;
 use serde::{Deserialize, Serialize};
@@ -18,7 +19,7 @@ pub struct TU {
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct TUV {
     pub language: String,
-    pub seg: String,
+    pub seg: Vec<SegNode>,
 }
 
 impl TmxFile {
@@ -36,7 +37,8 @@ impl TmxFile {
         let mut buf = Vec::new();
 
         let mut cur_tu = TU::default();
-        let mut cur_tuv;
+        let mut cur_tuv = TUV::default();
+        let mut cur_seg: Vec<SegNode>;
 
         let mut reader = Reader::from_str(&self.raw_content);
 
@@ -46,18 +48,24 @@ impl TmxFile {
                 Ok(Event::Start(e)) => match e.name().as_ref() {
                     b"tu" => cur_tu.tuid = crate::get_attribute(&reader, &e, "tuid"),
                     b"tuv" => {
-                        cur_tuv = TUV {
-                            language: crate::get_attribute(&reader, &e, "xml:lang"),
-                            seg: reader.read_text(e.name()).unwrap().into_owned(),
-                            // todo: consider parse this as inline too.
-                        };
-                        if cur_tuv.seg != "" {
-                            cur_tu.tuvs.push(cur_tuv)
+                        cur_tuv.language = crate::get_attribute(&reader, &e, "xml:lang");
+                    }
+                    b"seg" => {
+                        cur_seg = SegNode::parse_segment(&mut reader, &mut buf);
+                        if cur_seg.len() != 0 {
+                            cur_tuv.seg = cur_seg;
                         }
                     }
                     _ => (),
                 },
                 Ok(Event::End(e)) => match e.name().as_ref() {
+                    b"tuv" => {
+                        if cur_tuv.seg.len() != 0 {
+                            cur_tu.tuvs.push(cur_tuv)
+                        }
+
+                        cur_tuv = TUV::default();
+                    }
                     b"tu" => {
                         if cur_tu.tuvs.len() != 0 {
                             self.tus.push(cur_tu);

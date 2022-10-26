@@ -1,3 +1,4 @@
+use crate::SegNode;
 use quick_xml::events::Event;
 use quick_xml::reader::Reader;
 use serde::{Deserialize, Serialize};
@@ -26,42 +27,6 @@ pub struct TransUnit {
     pub target: Vec<SegNode>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub enum SegNode {
-    Text(String),
-    OpenOrClose(OpenOrCloseNode),
-    SelfClosing(SelfClosingNode),
-}
-
-#[derive(Debug, Default, Serialize, Deserialize)]
-pub struct OpenOrCloseNode {
-    pub node_type: String,
-    pub id: String,
-    pub content: String,
-}
-
-#[derive(Debug, Default, Serialize, Deserialize)]
-pub struct SelfClosingNode {
-    pub node_type: String,
-    pub id: String,
-}
-
-impl FromIterator<SegNode> for String {
-    fn from_iter<I: IntoIterator<Item = SegNode>>(iter: I) -> Self {
-        let mut s = String::new();
-
-        for n in iter {
-            match n {
-                SegNode::Text(content) => s.push_str(&content),
-                SegNode::OpenOrClose(node) => s.push_str(&node.content),
-                SegNode::SelfClosing(..) => s.push_str(""),
-            }
-        }
-
-        return s;
-    }
-}
-
 impl XliffFile {
     pub fn new(path: &str) -> XliffFile {
         let content = crate::read_xml(path);
@@ -71,47 +36,6 @@ impl XliffFile {
             xfiles: Vec::new(),
             raw_content: content,
         };
-    }
-
-    fn parse_segment(reader: &mut Reader<&[u8]>, buffer: &mut Vec<u8>) -> Vec<SegNode> {
-        let mut nodes = Vec::new();
-
-        let mut cur_selfclosing = SelfClosingNode::default();
-        let mut cur_openorclose = OpenOrCloseNode::default();
-
-        loop {
-            buffer.clear();
-            match reader.read_event_into(buffer) {
-                Err(e) => panic!("Error at position {}: {:?}", reader.buffer_position(), e),
-                Ok(Event::Start(e)) => match e.name().as_ref() {
-                    b"bpt" | b"ept" | b"ph" => {
-                        cur_openorclose.node_type =
-                            String::from_utf8_lossy(e.name().as_ref()).to_string();
-                        cur_openorclose.id = crate::get_attribute(&reader, &e, "id");
-                        cur_openorclose.content = reader.read_text(e.name()).unwrap().into_owned();
-                        nodes.push(SegNode::OpenOrClose(cur_openorclose));
-                        cur_openorclose = OpenOrCloseNode::default();
-                    }
-                    b"bx" | b"ex" | b"g" | b"x" => {
-                        cur_selfclosing.node_type =
-                            String::from_utf8_lossy(e.name().as_ref()).to_string();
-                        cur_selfclosing.id = crate::get_attribute(&reader, &e, "id");
-                        nodes.push(SegNode::SelfClosing(cur_selfclosing));
-                        cur_selfclosing = SelfClosingNode::default();
-                    }
-                    _ => (),
-                },
-
-                Ok(Event::Text(e)) => nodes.push(SegNode::Text(e.unescape().unwrap().into_owned())),
-                Ok(Event::End(e)) => match e.name().as_ref() {
-                    b"source" | b"target" => {
-                        return nodes;
-                    }
-                    _ => (),
-                },
-                _ => (),
-            }
-        }
     }
 
     pub fn parse(&mut self) {
@@ -136,13 +60,13 @@ impl XliffFile {
                     }
                     b"trans-unit" => cur_trans_unit.id = crate::get_attribute(&reader, &e, "id"),
                     b"source" => {
-                        cur_source = XliffFile::parse_segment(&mut reader, &mut buf);
+                        cur_source = SegNode::parse_segment(&mut reader, &mut buf);
                         if cur_source.len() != 0 {
                             cur_trans_unit.source = cur_source;
                         }
                     }
                     b"target" => {
-                        cur_target = XliffFile::parse_segment(&mut reader, &mut buf);
+                        cur_target = SegNode::parse_segment(&mut reader, &mut buf);
                         if cur_target.len() != 0 {
                             cur_trans_unit.target = cur_target;
                         }

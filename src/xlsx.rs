@@ -1,9 +1,10 @@
 use std::{fs::File, io::BufReader};
 
 use calamine::{open_workbook, Reader, Xlsx};
+use quick_xml::Reader as XML_Reader;
 
-use crate::xliff::SegNode;
 use crate::xliff::TransUnit;
+use crate::SegNode;
 
 pub struct TranslationXlsx {
     pub path: String,
@@ -34,18 +35,15 @@ impl TranslationXlsx {
 
         let _ = &trans_unit_rows.next(); // We skip the first row as headers
 
-        for r in trans_unit_rows {
-            let id: String;
-            let mut source = Vec::new();
-            let mut target = Vec::new();
+        let mut buffer = Vec::new();
 
-            id = r.get(0).unwrap().get_string().unwrap().to_string();
-            source.push(SegNode::Text(
-                r.get(1).unwrap().get_string().unwrap().to_string(),
-            ));
-            target.push(SegNode::Text(
-                r.get(2).unwrap().get_string().unwrap().to_string(),
-            ));
+        for r in trans_unit_rows {
+            let mut source_reader = XML_Reader::from_str(r.get(1).unwrap().get_string().unwrap());
+            let mut target_reader = XML_Reader::from_str(r.get(2).unwrap().get_string().unwrap());
+
+            let id = r.get(0).unwrap().get_string().unwrap().to_string();
+            let source = SegNode::parse_segment(&mut source_reader, &mut buffer);
+            let target = SegNode::parse_segment(&mut target_reader, &mut buffer);
 
             cur_trans_unit = TransUnit { id, source, target };
             if cur_trans_unit.id != "" {

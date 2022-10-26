@@ -1,3 +1,4 @@
+use crate::SegNode;
 use quick_xml::events::Event;
 use quick_xml::reader::Reader;
 use serde::{Deserialize, Serialize};
@@ -31,7 +32,7 @@ pub struct Tig {
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct Term {
     #[serde(rename = "$value")]
-    pub term: String,
+    pub term: Vec<SegNode>,
 }
 
 impl TbxFile {
@@ -64,9 +65,9 @@ impl TbxFile {
                     }
                     b"term" => {
                         cur_term = Term {
-                            term: reader.read_text(e.name()).unwrap().into_owned(),
+                            term: SegNode::parse_segment(&mut reader, &mut buf),
                         };
-                        if cur_term.term != "" {
+                        if cur_term.term.len() != 0 {
                             cur_tig.term = cur_term;
                         }
                     }
@@ -80,13 +81,13 @@ impl TbxFile {
                         cur_term_entry = TermEntry::default();
                     }
                     b"langSet" => {
-                        if cur_lang_set.tig.term.term != "" {
+                        if cur_lang_set.tig.term.term.len() != 0 {
                             cur_term_entry.lang_sets.push(cur_lang_set);
                         }
                         cur_lang_set = LangSet::default();
                     }
                     b"tig" => {
-                        if cur_tig.term.term != "" {
+                        if cur_tig.term.term.len() != 0 {
                             cur_lang_set.tig = cur_tig;
                         }
                         cur_tig = Tig::default();
