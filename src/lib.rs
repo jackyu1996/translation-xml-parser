@@ -8,6 +8,7 @@ use quick_xml::events::BytesStart;
 use quick_xml::events::Event;
 use quick_xml::reader::Reader;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::Read;
 
@@ -21,14 +22,14 @@ pub enum SegNode {
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct OpenOrCloseNode {
     pub node_type: String,
-    pub id: String,
+    pub attributes: HashMap<String, String>,
     pub content: String,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct SelfClosingNode {
     pub node_type: String,
-    pub id: String,
+    pub attributes: HashMap<String, String>,
 }
 
 impl<'a> FromIterator<&'a SegNode> for String {
@@ -61,20 +62,19 @@ impl SegNode {
             match reader.read_event_into(buffer) {
                 Err(e) => panic!("Error at position {}: {:?}", reader.buffer_position(), e),
                 Ok(Event::Start(e)) => match e.name().as_ref() {
-                    // is there a way to determine closeness of tag by quick_xml
-                    b"bpt" | b"ept" | b"ph" => {
+                    b"bpt" | b"ept" | b"ph" | b"g" | b"mrk" => {
                         cur_openorclose.node_type =
                             String::from_utf8_lossy(e.name().as_ref()).to_string();
-                        // consider getting all attributes
-                        cur_openorclose.id = crate::get_attribute(&reader, &e, "id");
+                        cur_openorclose.attributes = crate::get_attributes(&reader, &e);
+                        // todo: this read should stop to handle recursive cases
                         cur_openorclose.content = reader.read_text(e.name()).unwrap().into_owned();
                         nodes.push(SegNode::OpenOrClose(cur_openorclose));
                         cur_openorclose = OpenOrCloseNode::default();
                     }
-                    b"bx" | b"ex" | b"g" | b"x" => {
+                    b"bx" | b"ex" | b"x" => {
                         cur_selfclosing.node_type =
                             String::from_utf8_lossy(e.name().as_ref()).to_string();
-                        cur_selfclosing.id = crate::get_attribute(&reader, &e, "id");
+                        cur_selfclosing.attributes = crate::get_attributes(&reader, &e);
                         nodes.push(SegNode::SelfClosing(cur_selfclosing));
                         cur_selfclosing = SelfClosingNode::default();
                     }
@@ -96,14 +96,20 @@ impl SegNode {
     }
 }
 
-pub fn get_attribute(reader: &Reader<&[u8]>, start: &BytesStart, attribute_name: &str) -> String {
-    return start
-        .try_get_attribute(attribute_name)
-        .unwrap()
-        .unwrap()
-        .decode_and_unescape_value(reader)
-        .unwrap()
-        .into_owned();
+pub fn get_attributes(reader: &Reader<&[u8]>, start: &BytesStart) -> HashMap<String, String> {
+    let mut attributes = HashMap::new();
+
+    for i in start.attributes() {
+        attributes.insert(
+            String::from_utf8_lossy(i.as_ref().unwrap().key.into_inner()).into_owned(),
+            i.as_ref()
+                .unwrap()
+                .decode_and_unescape_value(reader)
+                .unwrap()
+                .into_owned(),
+        );
+    }
+    return attributes;
 }
 
 pub fn read_xml(path: &str) -> String {

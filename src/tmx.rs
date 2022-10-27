@@ -23,8 +23,8 @@ pub struct TUV {
 }
 
 impl TmxFile {
-    pub fn new(path: String) -> TmxFile {
-        let content = crate::read_xml(&path);
+    pub fn new(path: &str) -> TmxFile {
+        let content = crate::read_xml(path);
 
         return TmxFile {
             path: path.to_string(),
@@ -46,10 +46,19 @@ impl TmxFile {
             match reader.read_event_into(&mut buf) {
                 Err(e) => panic!("Error at position {}: {:?}", reader.buffer_position(), e),
                 Ok(Event::Start(e)) => match e.name().as_ref() {
-                    b"tu" => cur_tu.tuid = crate::get_attribute(&reader, &e, "tuid"),
-                    b"tuv" => {
-                        cur_tuv.language = crate::get_attribute(&reader, &e, "xml:lang");
+                    b"tu" => {
+                        cur_tu.tuid = crate::get_attributes(&reader, &e)
+                            .get("tuid")
+                            .unwrap()
+                            .to_owned()
                     }
+                    b"tuv" => {
+                        cur_tuv.language = crate::get_attributes(&reader, &e)
+                            .get("xml:lang")
+                            .unwrap()
+                            .to_owned()
+                    }
+
                     b"seg" => {
                         cur_seg = SegNode::parse_segment(&mut reader, &mut buf);
                         if cur_seg.len() != 0 {
@@ -86,7 +95,7 @@ impl TmxFile {
 mod tests {
     #[test]
     fn dummy_for_debug() {
-        let mut t = crate::tmx::TmxFile::new("./tests/CITIC.tmx".to_string());
+        let mut t = crate::tmx::TmxFile::new(&"./tests/CITIC.tmx");
         t.parse();
         assert!(1 != 2);
     }

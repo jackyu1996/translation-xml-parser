@@ -23,6 +23,7 @@ pub struct XFile {
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct TransUnit {
     pub id: String,
+    pub translate: String,
     pub source: Vec<SegNode>,
     pub target: Vec<SegNode>,
 }
@@ -35,6 +36,30 @@ impl XliffFile {
             path: path.to_owned(),
             xfiles: Vec::new(),
             raw_content: content,
+        };
+    }
+
+    pub fn new_xlz(path: &str) -> XliffFile {
+        let xlzfile = std::fs::File::open(&path).expect("Cannot open xlz file!");
+
+        let mut archive = zip::ZipArchive::new(xlzfile).expect("Invalid xlz file!");
+
+        let mut file = match archive.by_name("content.xlf") {
+            Ok(file) => file,
+            Err(_) => {
+                panic!("content.xlf not found in xlz file")
+            }
+        };
+
+        let mut contents = String::new();
+
+        file.read_to_string(&mut contents)
+            .expect("Failed to read into a string");
+
+        return XliffFile {
+            path: path.to_owned(),
+            xfiles: Vec::new(),
+            raw_content: contents,
         };
     }
 
@@ -53,12 +78,25 @@ impl XliffFile {
                 Err(e) => panic!("Error at position {}: {:?}", reader.buffer_position(), e),
                 Ok(Event::Start(e)) => match e.name().as_ref() {
                     b"file" => {
-                        cur_xfile.src_language =
-                            crate::get_attribute(&reader, &e, "source-language");
-                        cur_xfile.tgt_language =
-                            crate::get_attribute(&reader, &e, "target-language")
+                        cur_xfile.src_language = crate::get_attributes(&reader, &e)
+                            .get("source-language")
+                            .unwrap()
+                            .to_owned();
+                        cur_xfile.tgt_language = crate::get_attributes(&reader, &e)
+                            .get("target-language")
+                            .unwrap()
+                            .to_owned();
                     }
-                    b"trans-unit" => cur_trans_unit.id = crate::get_attribute(&reader, &e, "id"),
+                    b"trans-unit" => {
+                        cur_trans_unit.id = crate::get_attributes(&reader, &e)
+                            .get("id")
+                            .unwrap()
+                            .to_owned();
+                        cur_trans_unit.translate = crate::get_attributes(&reader, &e)
+                            .get("translate")
+                            .unwrap_or(&"yes".to_string())
+                            .to_owned()
+                    }
                     b"source" => {
                         cur_source = SegNode::parse_segment(&mut reader, &mut buf);
                         if cur_source.len() != 0 {
@@ -95,36 +133,13 @@ impl XliffFile {
         }
     }
 
-    pub fn read_from_xlz(path: &str) -> XliffFile {
-        let xlzfile = std::fs::File::open(&path).expect("Cannot open xlz file!");
-
-        let mut archive = zip::ZipArchive::new(xlzfile).expect("Invalid xlz file!");
-
-        let mut file = match archive.by_name("content.xlf") {
-            Ok(file) => file,
-            Err(_) => {
-                panic!("content.xlf not found in xlz file")
-            }
-        };
-
-        let mut contents = String::new();
-
-        file.read_to_string(&mut contents)
-            .expect("Failed to read into a string");
-
-        return XliffFile {
-            path: path.to_owned(),
-            xfiles: Vec::new(),
-            raw_content: contents,
-        };
-    }
 }
 
 #[cfg(test)]
 mod tests {
     #[test]
     fn dummy_for_debug() {
-        let mut t = crate::xliff::XliffFile::new(&"./tests/sul.txlf");
+        let mut t = crate::xliff::XliffFile::new(&"./tests/hermes.txlf");
         t.parse();
         assert!(1 != 2);
     }

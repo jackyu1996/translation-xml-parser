@@ -36,11 +36,11 @@ pub struct Term {
 }
 
 impl TbxFile {
-    pub fn new(path: String) -> TbxFile {
-        let raw_content = crate::read_xml(&path);
+    pub fn new(path: &str) -> TbxFile {
+        let raw_content = crate::read_xml(path);
 
         return TbxFile {
-            path,
+            path: path.to_string(),
             term_entries: Vec::new(),
             raw_content,
         };
@@ -61,7 +61,8 @@ impl TbxFile {
                 Err(e) => panic!("Error at position {}: {:?}", reader.buffer_position(), e),
                 Ok(Event::Start(e)) => match e.name().as_ref() {
                     b"langSet" => {
-                        cur_lang_set.language = crate::get_attribute(&reader, &e, "xml:lang");
+                        cur_lang_set.language =
+                            crate::get_attributes(&reader, &e).get("xml:lang").unwrap().to_owned();
                     }
                     b"term" => {
                         cur_term = Term {
@@ -105,7 +106,7 @@ impl TbxFile {
 mod tests {
     #[test]
     fn dummy_for_debug() {
-        let mut t = crate::tbx::TbxFile::new("./tests/lancom.tbx".to_string());
+        let mut t = crate::tbx::TbxFile::new(&"./tests/lancom.tbx");
         t.parse();
         assert!(1 != 2);
     }
