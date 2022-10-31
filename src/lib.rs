@@ -23,7 +23,7 @@ pub enum SegNode {
 pub struct OpenOrCloseNode {
     pub node_type: String,
     pub attributes: HashMap<String, String>,
-    pub content: String,
+    pub content: Vec<SegNode>,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -39,9 +39,11 @@ impl<'a> FromIterator<&'a SegNode> for String {
         for n in iter {
             match n {
                 SegNode::Text(content) => s.push_str(&content),
-                SegNode::OpenOrClose(node) => {
-                    s.push_str(&unescape(&node.content).unwrap().to_owned())
-                }
+                SegNode::OpenOrClose(node) => s.push_str(
+                    &unescape(&node.content.iter().collect::<String>())
+                        .unwrap()
+                        .to_owned(),
+                ),
                 SegNode::SelfClosing(..) => s.push_str(""),
             }
         }
@@ -51,26 +53,34 @@ impl<'a> FromIterator<&'a SegNode> for String {
 }
 
 impl SegNode {
-    fn parse_segment(reader: &mut Reader<&[u8]>, buffer: &mut Vec<u8>) -> Vec<SegNode> {
+    fn parse_segment(reader: &mut Reader<&[u8]>, buf: &mut Vec<u8>) -> Vec<SegNode> {
         let mut nodes = Vec::new();
 
         let mut cur_selfclosing = SelfClosingNode::default();
         let mut cur_openorclose = OpenOrCloseNode::default();
 
         loop {
-            buffer.clear();
-            match reader.read_event_into(buffer) {
+            match reader.read_event_into(buf) {
                 Err(e) => panic!("Error at position {}: {:?}", reader.buffer_position(), e),
                 Ok(Event::Start(e)) => match e.name().as_ref() {
                     b"bpt" | b"ept" | b"ph" | b"g" | b"mrk" => {
                         cur_openorclose.node_type =
                             String::from_utf8_lossy(e.name().as_ref()).to_string();
                         cur_openorclose.attributes = crate::get_attributes(&reader, &e);
-                        // todo: this read should stop to handle recursive cases
-                        cur_openorclose.content = reader.read_text(e.name()).unwrap().into_owned();
+                        let recurse_content = reader.read_text(e.name()).unwrap().into_owned();
+                        if recurse_content.contains(['<', '>']) {
+                            let mut recurse_reader = Reader::from_str(&recurse_content);
+                            cur_openorclose.content =
+                                SegNode::parse_segment(&mut recurse_reader, buf);
+                        } else {
+                            cur_openorclose.content = vec![SegNode::Text(recurse_content)];
+                        }
                         nodes.push(SegNode::OpenOrClose(cur_openorclose));
                         cur_openorclose = OpenOrCloseNode::default();
                     }
+                    _ => (),
+                },
+                Ok(Event::Empty(e)) => match e.name().as_ref() {
                     b"bx" | b"ex" | b"x" => {
                         cur_selfclosing.node_type =
                             String::from_utf8_lossy(e.name().as_ref()).to_string();
@@ -80,7 +90,6 @@ impl SegNode {
                     }
                     _ => (),
                 },
-
                 Ok(Event::Text(e)) => nodes.push(SegNode::Text(e.unescape().unwrap().into_owned())),
                 Ok(Event::End(e)) => match e.name().as_ref() {
                     // note: you have to add end tag here to break
@@ -92,6 +101,7 @@ impl SegNode {
                 Ok(Event::Eof) => return nodes,
                 _ => (),
             }
+            buf.clear();
         }
     }
 }

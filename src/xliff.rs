@@ -132,7 +132,6 @@ impl XliffFile {
             buf.clear()
         }
     }
-
 }
 
 #[cfg(test)]
