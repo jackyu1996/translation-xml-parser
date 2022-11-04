@@ -45,7 +45,12 @@ impl TranslationXlsx {
             let source = SegNode::parse_segment(&mut source_reader, &mut buffer);
             let target = SegNode::parse_segment(&mut target_reader, &mut buffer);
 
-            cur_trans_unit = TransUnit { id, source, target, translate: "yes".to_string() };
+            cur_trans_unit = TransUnit {
+                id,
+                source,
+                target,
+                translate: "yes".to_string(),
+            };
             if cur_trans_unit.id != "" {
                 self.trans_units.push(cur_trans_unit)
             }
