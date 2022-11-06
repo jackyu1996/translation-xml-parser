@@ -26,14 +26,16 @@ impl TmxFile {
     pub fn new(path: &str) -> TmxFile {
         let content = crate::read_xml(path);
 
-        return TmxFile {
+        let mut tmx_file = TmxFile {
             path: path.to_string(),
             tus: Vec::new(),
             raw_content: content,
         };
+        tmx_file.parse();
+        return tmx_file;
     }
 
-    pub fn parse(&mut self) {
+    fn parse(&mut self) {
         let mut buf = Vec::new();
 
         let mut cur_tu = TU::default();
@@ -95,8 +97,8 @@ impl TmxFile {
 mod tests {
     #[test]
     fn dummy_for_debug() {
-        let mut t = crate::tmx::TmxFile::new(&"./tests/CITIC.tmx");
-        t.parse();
+        let t = crate::tmx::TmxFile::new(&"./tests/CITIC.tmx");
+        dbg!(t.tus);
         assert!(1 != 2);
     }
 }

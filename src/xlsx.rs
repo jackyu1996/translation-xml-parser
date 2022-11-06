@@ -9,6 +9,8 @@ use crate::SegNode;
 pub struct TranslationXlsx {
     pub path: String,
     pub trans_units: Vec<TransUnit>,
+    pub src_language: String,
+    pub tgt_language: String,
     xlsx: Xlsx<BufReader<File>>,
 }
 
@@ -16,14 +18,18 @@ impl TranslationXlsx {
     pub fn new(path: &str) -> TranslationXlsx {
         let workbook: Xlsx<_> = open_workbook(path).expect("Cannot open xlsx file");
 
-        return TranslationXlsx {
+        let mut translation_xlsx = TranslationXlsx {
             path: path.to_owned(),
             trans_units: Vec::new(),
             xlsx: workbook,
+            src_language: "".to_string(),
+            tgt_language: "".to_string(),
         };
+        translation_xlsx.parse();
+        return translation_xlsx;
     }
 
-    pub fn parse(&mut self) {
+    fn parse(&mut self) {
         let all_worksheets = self.xlsx.worksheets();
         let first_sheet = all_worksheets.get(0).unwrap();
 
@@ -33,7 +39,14 @@ impl TranslationXlsx {
 
         let mut trans_unit_rows = first_sheet.1.rows();
 
-        let _ = &trans_unit_rows.next(); // We skip the first row as headers
+        self.src_language = trans_unit_rows.next().unwrap()[1]
+            .get_string()
+            .unwrap()
+            .to_string();
+        self.tgt_language = trans_unit_rows.next().unwrap()[2]
+            .get_string()
+            .unwrap()
+            .to_string();
 
         let mut buffer = Vec::new();
 

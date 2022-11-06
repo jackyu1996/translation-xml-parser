@@ -115,7 +115,7 @@ pub fn get_attributes(reader: &Reader<&[u8]>, start: &BytesStart) -> HashMap<Str
             i.as_ref()
                 .unwrap()
                 .decode_and_unescape_value(reader)
-                .unwrap()
+                .expect("Failed to decode attribute value")
                 .into_owned(),
         );
     }

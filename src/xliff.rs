@@ -32,11 +32,13 @@ impl XliffFile {
     pub fn new(path: &str) -> XliffFile {
         let content = crate::read_xml(path);
 
-        return XliffFile {
+        let mut xliff_file = XliffFile {
             path: path.to_owned(),
             xfiles: Vec::new(),
             raw_content: content,
         };
+        xliff_file.parse();
+        return xliff_file;
     }
 
     pub fn new_xlz(path: &str) -> XliffFile {
@@ -56,14 +58,16 @@ impl XliffFile {
         file.read_to_string(&mut contents)
             .expect("Failed to read into a string");
 
-        return XliffFile {
+        let mut xliff_file = XliffFile {
             path: path.to_owned(),
             xfiles: Vec::new(),
             raw_content: contents,
         };
+        xliff_file.parse();
+        return xliff_file;
     }
 
-    pub fn parse(&mut self) {
+    fn parse(&mut self) {
         let mut buf = Vec::new();
 
         let mut cur_xfile = XFile::default();
@@ -80,17 +84,17 @@ impl XliffFile {
                     b"file" => {
                         cur_xfile.src_language = crate::get_attributes(&reader, &e)
                             .get("source-language")
-                            .unwrap()
+                            .expect("source-language attribute not found")
                             .to_owned();
                         cur_xfile.tgt_language = crate::get_attributes(&reader, &e)
                             .get("target-language")
-                            .unwrap()
+                            .expect("target-language attribute not found")
                             .to_owned();
                     }
                     b"trans-unit" => {
                         cur_trans_unit.id = crate::get_attributes(&reader, &e)
                             .get("id")
-                            .unwrap()
+                            .expect("id attribute not found")
                             .to_owned();
                         cur_trans_unit.translate = crate::get_attributes(&reader, &e)
                             .get("translate")
@@ -138,8 +142,8 @@ impl XliffFile {
 mod tests {
     #[test]
     fn dummy_for_debug() {
-        let mut t = crate::xliff::XliffFile::new(&"./tests/hermes.txlf");
-        t.parse();
+        let t = crate::xliff::XliffFile::new(&"./tests/hermes.txlf");
+        dbg!(t.xfiles);
         assert!(1 != 2);
     }
 }

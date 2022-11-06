@@ -26,12 +26,6 @@ pub struct LangSet {
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct Tig {
     #[serde(rename = "$value")]
-    pub term: Term,
-}
-
-#[derive(Debug, Default, Serialize, Deserialize)]
-pub struct Term {
-    #[serde(rename = "$value")]
     pub term: Vec<SegNode>,
 }
 
@@ -39,20 +33,21 @@ impl TbxFile {
     pub fn new(path: &str) -> TbxFile {
         let raw_content = crate::read_xml(path);
 
-        return TbxFile {
+        let mut tbx_file = TbxFile {
             path: path.to_string(),
             term_entries: Vec::new(),
             raw_content,
         };
+        tbx_file.parse();
+        return tbx_file;
     }
 
-    pub fn parse(&mut self) {
+    fn parse(&mut self) {
         let mut buf = Vec::new();
 
         let mut cur_term_entry = TermEntry::default();
         let mut cur_lang_set = LangSet::default();
         let mut cur_tig = Tig::default();
-        let mut cur_term;
 
         let mut reader = Reader::from_str(&self.raw_content);
 
@@ -67,12 +62,9 @@ impl TbxFile {
                             .to_owned();
                     }
                     b"term" => {
-                        cur_term = Term {
+                        cur_tig = Tig {
                             term: SegNode::parse_segment(&mut reader, &mut buf),
                         };
-                        if cur_term.term.len() != 0 {
-                            cur_tig.term = cur_term;
-                        }
                     }
                     _ => (),
                 },
@@ -83,17 +75,19 @@ impl TbxFile {
                         }
                         cur_term_entry = TermEntry::default();
                     }
-                    b"langSet" => {
-                        if cur_lang_set.tig.term.term.len() != 0 {
-                            cur_term_entry.lang_sets.push(cur_lang_set);
-                        }
-                        cur_lang_set = LangSet::default();
-                    }
-                    b"tig" => {
-                        if cur_tig.term.term.len() != 0 {
+                    b"term" => {
+                        if cur_tig.term.len() != 0 {
                             cur_lang_set.tig = cur_tig;
                         }
                         cur_tig = Tig::default();
+                    }
+                    b"langSet" => {
+                        if cur_tig.term.len() != 0 {
+                            cur_lang_set.tig = cur_tig;
+                            cur_term_entry.lang_sets.push(cur_lang_set);
+                        }
+                        cur_tig = Tig::default();
+                        cur_lang_set = LangSet::default();
                     }
                     _ => (),
                 },
@@ -108,8 +102,8 @@ impl TbxFile {
 mod tests {
     #[test]
     fn dummy_for_debug() {
-        let mut t = crate::tbx::TbxFile::new(&"./tests/lancom.tbx");
-        t.parse();
+        let t = crate::tbx::TbxFile::new(&"./tests/lancom.tbx");
+        dbg!(&t.term_entries);
         assert!(1 != 2);
     }
 }
