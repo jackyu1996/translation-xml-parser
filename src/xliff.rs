@@ -85,11 +85,13 @@ impl XliffFile {
                         cur_xfile.src_language = crate::get_attributes(&reader, &e)
                             .get("source-language")
                             .expect("source-language attribute not found")
-                            .to_owned();
+                            .to_owned()
+                            .to_lowercase();
                         cur_xfile.tgt_language = crate::get_attributes(&reader, &e)
                             .get("target-language")
                             .expect("target-language attribute not found")
-                            .to_owned();
+                            .to_owned()
+                            .to_lowercase();
                     }
                     b"trans-unit" => {
                         cur_trans_unit.id = crate::get_attributes(&reader, &e)

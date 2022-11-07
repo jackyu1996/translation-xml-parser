@@ -42,11 +42,13 @@ impl TranslationXlsx {
         self.src_language = trans_unit_rows.next().unwrap()[1]
             .get_string()
             .unwrap()
-            .to_string();
+            .to_string()
+            .to_lowercase();
         self.tgt_language = trans_unit_rows.next().unwrap()[2]
             .get_string()
             .unwrap()
-            .to_string();
+            .to_string()
+            .to_lowercase();
 
         let mut buffer = Vec::new();
 

@@ -59,7 +59,8 @@ impl TbxFile {
                         cur_lang_set.language = crate::get_attributes(&reader, &e)
                             .get("xml:lang")
                             .unwrap()
-                            .to_owned();
+                            .to_owned()
+                            .to_lowercase();
                     }
                     b"term" => {
                         cur_tig = Tig {

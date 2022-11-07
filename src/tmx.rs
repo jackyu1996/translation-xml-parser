@@ -59,6 +59,7 @@ impl TmxFile {
                             .get("xml:lang")
                             .unwrap()
                             .to_owned()
+                            .to_lowercase()
                     }
 
                     b"seg" => {
