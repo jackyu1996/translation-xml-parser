@@ -51,7 +51,7 @@ impl TmxFile {
                     b"tu" => {
                         cur_tu.tuid = crate::get_attributes(&reader, &e)
                             .get("tuid")
-                            .unwrap()
+                            .unwrap_or(&"".to_string())
                             .to_owned()
                     }
                     b"tuv" => {
