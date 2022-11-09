@@ -144,7 +144,7 @@ impl XliffFile {
 mod tests {
     #[test]
     fn dummy_for_debug() {
-        let t = crate::xliff::XliffFile::new(&"./tests/hermes.txlf");
+        let t = crate::xliff::XliffFile::new(&"./tests/approval.sdlxliff");
         dbg!(t.xfiles);
         assert!(1 != 2);
     }

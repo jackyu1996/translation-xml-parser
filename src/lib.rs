@@ -15,21 +15,15 @@ use std::io::Read;
 #[derive(Debug, Serialize, Deserialize)]
 pub enum SegNode {
     Text(String),
-    OpenOrClose(OpenOrCloseNode),
-    SelfClosing(SelfClosingNode),
-}
-
-#[derive(Debug, Default, Serialize, Deserialize)]
-pub struct OpenOrCloseNode {
-    pub node_type: String,
-    pub attributes: HashMap<String, String>,
-    pub content: Vec<SegNode>,
-}
-
-#[derive(Debug, Default, Serialize, Deserialize)]
-pub struct SelfClosingNode {
-    pub node_type: String,
-    pub attributes: HashMap<String, String>,
+    OpenOrCloseNode {
+        node_type: String,
+        attributes: HashMap<String, String>,
+        content: Box<Vec<SegNode>>,
+    },
+    SelfClosingNode {
+        node_type: String,
+        attributes: HashMap<String, String>,
+    },
 }
 
 impl<'a> FromIterator<&'a SegNode> for String {
@@ -39,12 +33,12 @@ impl<'a> FromIterator<&'a SegNode> for String {
         for n in iter {
             match n {
                 SegNode::Text(content) => s.push_str(&content),
-                SegNode::OpenOrClose(node) => s.push_str(
-                    &unescape(&node.content.iter().collect::<String>())
+                SegNode::OpenOrCloseNode { content, .. } => s.push_str(
+                    &unescape(&content.iter().collect::<String>())
                         .unwrap()
                         .to_owned(),
                 ),
-                SegNode::SelfClosing(..) => s.push_str(""),
+                SegNode::SelfClosingNode { .. } => s.push_str(""),
             }
         }
 
@@ -56,37 +50,39 @@ impl SegNode {
     fn parse_segment(reader: &mut Reader<&[u8]>, buf: &mut Vec<u8>) -> Vec<SegNode> {
         let mut nodes = Vec::new();
 
-        let mut cur_selfclosing = SelfClosingNode::default();
-        let mut cur_openorclose = OpenOrCloseNode::default();
-
         loop {
             match reader.read_event_into(buf) {
                 Err(e) => panic!("Error at position {}: {:?}", reader.buffer_position(), e),
                 Ok(Event::Start(e)) => match e.name().as_ref() {
                     b"bpt" | b"ept" | b"ph" | b"g" | b"mrk" => {
-                        cur_openorclose.node_type =
-                            String::from_utf8_lossy(e.name().as_ref()).to_string();
-                        cur_openorclose.attributes = crate::get_attributes(&reader, &e);
+                        let node_type = String::from_utf8_lossy(e.name().as_ref()).to_string();
+                        let attributes = crate::get_attributes(&reader, &e);
                         let recurse_content = reader.read_text(e.name()).unwrap().into_owned();
                         if recurse_content.contains(['<', '>']) {
                             let mut recurse_reader = Reader::from_str(&recurse_content);
-                            cur_openorclose.content =
-                                SegNode::parse_segment(&mut recurse_reader, buf);
+                            nodes.push(SegNode::OpenOrCloseNode {
+                                node_type,
+                                attributes,
+                                content: Box::new(SegNode::parse_segment(&mut recurse_reader, buf)),
+                            })
                         } else {
-                            cur_openorclose.content = vec![SegNode::Text(recurse_content)];
+                            nodes.push(SegNode::OpenOrCloseNode {
+                                node_type,
+                                attributes,
+                                content: Box::new(vec![SegNode::Text(recurse_content)]),
+                            })
                         }
-                        nodes.push(SegNode::OpenOrClose(cur_openorclose));
-                        cur_openorclose = OpenOrCloseNode::default();
                     }
                     _ => (),
                 },
                 Ok(Event::Empty(e)) => match e.name().as_ref() {
                     b"bx" | b"ex" | b"x" => {
-                        cur_selfclosing.node_type =
-                            String::from_utf8_lossy(e.name().as_ref()).to_string();
-                        cur_selfclosing.attributes = crate::get_attributes(&reader, &e);
-                        nodes.push(SegNode::SelfClosing(cur_selfclosing));
-                        cur_selfclosing = SelfClosingNode::default();
+                        let node_type = String::from_utf8_lossy(e.name().as_ref()).to_string();
+                        let attributes = crate::get_attributes(&reader, &e);
+                        nodes.push(SegNode::SelfClosingNode {
+                            node_type,
+                            attributes,
+                        });
                     }
                     _ => (),
                 },
