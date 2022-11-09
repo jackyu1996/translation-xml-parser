@@ -18,7 +18,7 @@ pub enum SegNode {
     OpenOrCloseNode {
         node_type: String,
         attributes: HashMap<String, String>,
-        content: Box<Vec<SegNode>>,
+        content: Vec<Box<SegNode>>,
     },
     SelfClosingNode {
         node_type: String,
@@ -26,13 +26,13 @@ pub enum SegNode {
     },
 }
 
-impl<'a> FromIterator<&'a SegNode> for String {
-    fn from_iter<I: IntoIterator<Item = &'a SegNode>>(iter: I) -> Self {
+impl<'a> FromIterator<&'a Box<SegNode>> for String {
+    fn from_iter<I: IntoIterator<Item = &'a Box<SegNode>>>(iter: I) -> Self {
         let mut s = String::new();
 
         for n in iter {
-            match n {
-                SegNode::Text(content) => s.push_str(&content),
+            match n.as_ref() {
+                SegNode::Text(content) => s.push_str(&Box::new(content)),
                 SegNode::OpenOrCloseNode { content, .. } => s.push_str(
                     &unescape(&content.iter().collect::<String>())
                         .unwrap()
@@ -47,7 +47,7 @@ impl<'a> FromIterator<&'a SegNode> for String {
 }
 
 impl SegNode {
-    fn parse_segment(reader: &mut Reader<&[u8]>, buf: &mut Vec<u8>) -> Vec<SegNode> {
+    fn parse_segment(reader: &mut Reader<&[u8]>, buf: &mut Vec<u8>) -> Vec<Box<SegNode>> {
         let mut nodes = Vec::new();
 
         loop {
@@ -60,17 +60,17 @@ impl SegNode {
                         let recurse_content = reader.read_text(e.name()).unwrap().into_owned();
                         if recurse_content.contains(['<', '>']) {
                             let mut recurse_reader = Reader::from_str(&recurse_content);
-                            nodes.push(SegNode::OpenOrCloseNode {
+                            nodes.push(Box::new(SegNode::OpenOrCloseNode {
                                 node_type,
                                 attributes,
-                                content: Box::new(SegNode::parse_segment(&mut recurse_reader, buf)),
-                            })
+                                content: SegNode::parse_segment(&mut recurse_reader, buf),
+                            }))
                         } else {
-                            nodes.push(SegNode::OpenOrCloseNode {
+                            nodes.push(Box::new(SegNode::OpenOrCloseNode {
                                 node_type,
                                 attributes,
-                                content: Box::new(vec![SegNode::Text(recurse_content)]),
-                            })
+                                content: vec![Box::new(SegNode::Text(recurse_content))],
+                            }))
                         }
                     }
                     _ => (),
@@ -79,14 +79,16 @@ impl SegNode {
                     b"bx" | b"ex" | b"x" => {
                         let node_type = String::from_utf8_lossy(e.name().as_ref()).to_string();
                         let attributes = crate::get_attributes(&reader, &e);
-                        nodes.push(SegNode::SelfClosingNode {
+                        nodes.push(Box::new(SegNode::SelfClosingNode {
                             node_type,
                             attributes,
-                        });
+                        }));
                     }
                     _ => (),
                 },
-                Ok(Event::Text(e)) => nodes.push(SegNode::Text(e.unescape().unwrap().into_owned())),
+                Ok(Event::Text(e)) => {
+                    nodes.push(Box::new(SegNode::Text(e.unescape().unwrap().into_owned())))
+                }
                 Ok(Event::End(e)) => match e.name().as_ref() {
                     // note: you have to add end tag here to break
                     b"source" | b"target" | b"seg" | b"term" => {

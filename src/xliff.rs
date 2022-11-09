@@ -24,8 +24,8 @@ pub struct XFile {
 pub struct TransUnit {
     pub id: String,
     pub translate: String,
-    pub source: Vec<SegNode>,
-    pub target: Vec<SegNode>,
+    pub source: Vec<Box<SegNode>>,
+    pub target: Vec<Box<SegNode>>,
 }
 
 impl XliffFile {
@@ -72,8 +72,8 @@ impl XliffFile {
 
         let mut cur_xfile = XFile::default();
         let mut cur_trans_unit = TransUnit::default();
-        let mut cur_source: Vec<SegNode>;
-        let mut cur_target: Vec<SegNode>;
+        let mut cur_source: Vec<Box<SegNode>>;
+        let mut cur_target: Vec<Box<SegNode>>;
 
         let mut reader = Reader::from_str(&self.raw_content);
 

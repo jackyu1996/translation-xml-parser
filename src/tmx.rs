@@ -19,7 +19,7 @@ pub struct TU {
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct TUV {
     pub language: String,
-    pub seg: Vec<SegNode>,
+    pub seg: Vec<Box<SegNode>>,
 }
 
 impl TmxFile {
@@ -40,7 +40,7 @@ impl TmxFile {
 
         let mut cur_tu = TU::default();
         let mut cur_tuv = TUV::default();
-        let mut cur_seg: Vec<SegNode>;
+        let mut cur_seg: Vec<Box<SegNode>>;
 
         let mut reader = Reader::from_str(&self.raw_content);
 

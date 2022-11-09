@@ -26,7 +26,7 @@ pub struct LangSet {
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct Tig {
     #[serde(rename = "$value")]
-    pub term: Vec<SegNode>,
+    pub term: Vec<Box<SegNode>>,
 }
 
 impl TbxFile {
