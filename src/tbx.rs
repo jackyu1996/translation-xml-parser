@@ -9,13 +9,13 @@ pub struct TbxFile {
     raw_content: String,
 }
 
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
 pub struct TermEntry {
     #[serde(rename = "$value")]
     pub lang_sets: Vec<LangSet>,
 }
 
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
 pub struct LangSet {
     #[serde(rename = "$primitive=xml:lang")]
     pub language: String,
@@ -23,7 +23,7 @@ pub struct LangSet {
     pub tig: Tig,
 }
 
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
 pub struct Tig {
     #[serde(rename = "$value")]
     pub term: Vec<Box<SegNode>>,

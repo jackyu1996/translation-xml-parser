@@ -3,20 +3,20 @@ use quick_xml::events::Event;
 use quick_xml::reader::Reader;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TmxFile {
     pub path: String,
     pub tus: Vec<TU>,
     raw_content: String,
 }
 
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
 pub struct TU {
     pub tuid: String,
     pub tuvs: Vec<TUV>,
 }
 
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
 pub struct TUV {
     pub language: String,
     pub seg: Vec<Box<SegNode>>,

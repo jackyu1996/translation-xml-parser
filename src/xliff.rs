@@ -6,21 +6,21 @@ use serde::{Deserialize, Serialize};
 use std::io::prelude::*;
 use zip;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct XliffFile {
     pub path: String,
     pub xfiles: Vec<XFile>,
     raw_content: String,
 }
 
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
 pub struct XFile {
     pub src_language: String,
     pub tgt_language: String,
     pub trans_units: Vec<TransUnit>,
 }
 
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
 pub struct TransUnit {
     pub id: String,
     pub translate: String,
