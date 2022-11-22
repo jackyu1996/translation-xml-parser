@@ -1,7 +1,10 @@
-use crate::SegNode;
+use crate::{
+    search_in_transunits, GetMeta, MatchResult, MetaInfo, SearchInFile, SearchString, SegNode,
+};
 use quick_xml::events::Event;
 use quick_xml::reader::Reader;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 use std::io::prelude::*;
 use zip;
@@ -30,7 +33,7 @@ pub struct TransUnit {
 
 impl XliffFile {
     pub fn new(path: &str) -> XliffFile {
-        let content = crate::read_xml(path);
+        let content = crate::read_to_string(path);
 
         let mut xliff_file = XliffFile {
             path: path.to_owned(),
@@ -104,13 +107,13 @@ impl XliffFile {
                             .to_owned()
                     }
                     b"source" => {
-                        cur_source = SegNode::parse_segment(&mut reader, &mut buf);
+                        cur_source = SegNode::parse_inline(&mut reader, &mut buf);
                         if cur_source.len() != 0 {
                             cur_trans_unit.source = cur_source;
                         }
                     }
                     b"target" => {
-                        cur_target = SegNode::parse_segment(&mut reader, &mut buf);
+                        cur_target = SegNode::parse_inline(&mut reader, &mut buf);
                         if cur_target.len() != 0 {
                             cur_trans_unit.target = cur_target;
                         }
@@ -137,6 +140,45 @@ impl XliffFile {
             }
             buf.clear()
         }
+    }
+}
+
+impl SearchInFile for XliffFile {
+    fn search_in_file(
+        &self,
+        include_tags: bool,
+        matcher: &Box<dyn SearchString>,
+    ) -> Vec<MatchResult> {
+        let mut match_results = Vec::new();
+
+        for file in &self.xfiles {
+            search_in_transunits(&file.trans_units, include_tags, matcher, &mut match_results)
+        }
+
+        return match_results;
+    }
+}
+
+impl GetMeta for XliffFile {
+    fn get_meta(&self) -> MetaInfo {
+        let mut languages = HashMap::new();
+
+        for f in &self.xfiles {
+            let src_key = f.src_language.as_str();
+            let tgt_key = f.tgt_language.as_str();
+            let src_acc_len = languages.get(src_key).unwrap_or(&0).to_owned();
+            let tgt_acc_len = languages.get(tgt_key).unwrap_or(&0).to_owned();
+
+            let len = f.trans_units.len();
+            languages.insert(src_key, len + src_acc_len);
+            languages.insert(tgt_key, len + tgt_acc_len); // how about non-translated?
+        }
+
+        return MetaInfo { languages };
+    }
+
+    fn get_filename(&self) -> String {
+        return self.path.to_owned();
     }
 }
 

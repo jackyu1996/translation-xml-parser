@@ -1,7 +1,8 @@
-use crate::SegNode;
+use crate::{extract_text, GetMeta, MatchResult, MetaInfo, SearchInFile, SearchString, SegNode};
 use quick_xml::events::Event;
 use quick_xml::reader::Reader;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 pub struct TbxFile {
     pub path: String,
@@ -31,7 +32,7 @@ pub struct Tig {
 
 impl TbxFile {
     pub fn new(path: &str) -> TbxFile {
-        let raw_content = crate::read_xml(path);
+        let raw_content = crate::read_to_string(path);
 
         let mut tbx_file = TbxFile {
             path: path.to_string(),
@@ -64,7 +65,7 @@ impl TbxFile {
                     }
                     b"term" => {
                         cur_tig = Tig {
-                            term: SegNode::parse_segment(&mut reader, &mut buf),
+                            term: SegNode::parse_inline(&mut reader, &mut buf),
                         };
                     }
                     _ => (),
@@ -97,6 +98,59 @@ impl TbxFile {
             }
             buf.clear()
         }
+    }
+}
+
+impl GetMeta for TbxFile {
+    fn get_meta(&self) -> MetaInfo {
+        let mut languages = HashMap::new();
+
+        for ls in self
+            .term_entries
+            .iter()
+            .map(|te| &te.lang_sets)
+            .flatten()
+            .collect::<Vec<_>>()
+        {
+            let cur_lang = ls.language.as_str();
+            let acc_len = languages.get(cur_lang).unwrap_or(&0).to_owned();
+            languages.insert(cur_lang, acc_len + 1);
+        }
+
+        return MetaInfo { languages };
+    }
+
+    fn get_filename(&self) -> String {
+        return self.path.to_owned();
+    }
+}
+
+impl SearchInFile for TbxFile {
+    fn search_in_file(
+        &self,
+        include_tags: bool,
+        matcher: &Box<dyn SearchString>,
+    ) -> Vec<MatchResult> {
+        let mut match_results = Vec::new();
+
+        for te in &self.term_entries {
+            for ls in &te.lang_sets {
+                let cur_term = extract_text(&ls.tig.term, include_tags);
+                if let Some(match_result) = matcher.match_string(&cur_term) {
+                    match_results.push(MatchResult {
+                        text: cur_term,
+                        matched: match_result,
+                        extra: te
+                            .lang_sets
+                            .iter()
+                            .filter(|l| l.language != ls.language)
+                            .map(|u| u.tig.term.iter().collect::<String>())
+                            .collect::<Vec<String>>(),
+                    })
+                }
+            }
+        }
+        return match_results;
     }
 }
 

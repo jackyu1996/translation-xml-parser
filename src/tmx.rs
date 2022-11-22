@@ -1,7 +1,8 @@
-use crate::SegNode;
+use crate::{extract_text, GetMeta, MatchResult, MetaInfo, SearchInFile, SearchString, SegNode};
 use quick_xml::events::Event;
 use quick_xml::reader::Reader;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
 pub struct TmxFile {
@@ -24,7 +25,7 @@ pub struct TUV {
 
 impl TmxFile {
     pub fn new(path: &str) -> TmxFile {
-        let content = crate::read_xml(path);
+        let content = crate::read_to_string(path);
 
         let mut tmx_file = TmxFile {
             path: path.to_string(),
@@ -63,7 +64,7 @@ impl TmxFile {
                     }
 
                     b"seg" => {
-                        cur_seg = SegNode::parse_segment(&mut reader, &mut buf);
+                        cur_seg = SegNode::parse_inline(&mut reader, &mut buf);
                         if cur_seg.len() != 0 {
                             cur_tuv.seg = cur_seg;
                         }
@@ -92,6 +93,60 @@ impl TmxFile {
             }
             buf.clear()
         }
+    }
+}
+
+impl GetMeta for TmxFile {
+    fn get_meta(&self) -> MetaInfo {
+        let mut languages = HashMap::new();
+
+        for tuv in self
+            .tus
+            .iter()
+            .map(|tu| &tu.tuvs)
+            .flatten()
+            .collect::<Vec<_>>()
+        {
+            let cur_lang = tuv.language.as_str();
+            let acc_len = languages.get(cur_lang).unwrap_or(&0).to_owned();
+            languages.insert(cur_lang, acc_len + 1);
+        }
+
+        return MetaInfo { languages };
+    }
+
+    fn get_filename(&self) -> String {
+        return self.path.to_owned();
+    }
+}
+
+impl SearchInFile for TmxFile {
+    fn search_in_file(
+        &self,
+        include_tags: bool,
+        matcher: &Box<dyn SearchString>,
+    ) -> Vec<MatchResult> {
+        let mut match_results = Vec::new();
+
+        for tu in &self.tus {
+            for tuv in &tu.tuvs {
+                let cur_tuv = extract_text(&tuv.seg, include_tags);
+                if let Some(match_result) = matcher.match_string(&cur_tuv) {
+                    match_results.push(MatchResult {
+                        text: cur_tuv,
+                        matched: match_result,
+                        extra: tu
+                            .tuvs
+                            .iter()
+                            .filter(|v| v.language != tuv.language)
+                            .map(|v| v.seg.iter().collect::<String>())
+                            .collect::<Vec<String>>(),
+                    })
+                }
+            }
+        }
+
+        return match_results;
     }
 }
 
