@@ -38,8 +38,9 @@ pub struct MatchResult {
 impl fmt::Display for MatchResult {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}: \"{}\"\n", self.matched, self.text).unwrap();
+        write!(f, "Extra info:\n").unwrap();
         for e in &self.extra {
-            write!(f, "Extra info: \"{}\"\n", e).unwrap();
+            write!(f, "\t\"{}\"\n", e).unwrap();
         }
         Ok(())
     }
