@@ -26,6 +26,7 @@ pub struct XFile {
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 pub struct TransUnit {
     pub id: String,
+    pub sn: u16,
     pub translate: String,
     pub source: Vec<Box<SegNode>>,
     pub target: Vec<Box<SegNode>>,
@@ -72,6 +73,7 @@ impl XliffFile {
 
     fn parse(&mut self) {
         let mut buf = Vec::new();
+        let mut sn = 0;
 
         let mut cur_xfile = XFile::default();
         let mut cur_trans_unit = TransUnit::default();
@@ -101,6 +103,8 @@ impl XliffFile {
                             .get("id")
                             .expect("id attribute not found")
                             .to_owned();
+                        sn += 1;
+                        cur_trans_unit.sn = sn;
                         cur_trans_unit.translate = crate::get_attributes(&reader, &e)
                             .get("translate")
                             .unwrap_or(&"yes".to_string())

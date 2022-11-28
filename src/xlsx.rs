@@ -34,6 +34,7 @@ impl TranslationXlsx {
     fn parse(&mut self) {
         let all_worksheets = self.xlsx.worksheets();
         let first_sheet = all_worksheets.get(0).unwrap();
+        let mut sn = 0;
 
         let mut cur_trans_unit;
 
@@ -61,9 +62,11 @@ impl TranslationXlsx {
             let id = r.get(0).unwrap().get_string().unwrap().to_string();
             let source = SegNode::parse_inline(&mut source_reader, &mut buffer);
             let target = SegNode::parse_inline(&mut target_reader, &mut buffer);
+            sn += 1;
 
             cur_trans_unit = TransUnit {
                 id,
+                sn,
                 source,
                 target,
                 translate: "yes".to_string(),

@@ -97,13 +97,13 @@ pub fn search_in_transunits(
             match_results.push(MatchResult {
                 text: source,
                 matched: match_result,
-                extra: vec![target],
+                extra: vec![tu.id.clone(), target],
             });
         } else if let Some(match_result) = matcher.match_string(&target) {
             match_results.push(MatchResult {
                 text: target,
                 matched: match_result,
-                extra: vec![source],
+                extra: vec![tu.id.clone(), source],
             })
         }
     }
