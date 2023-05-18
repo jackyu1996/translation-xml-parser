@@ -57,10 +57,13 @@ impl TranslationXlsx {
         let mut buffer = Vec::new();
 
         for r in trans_unit_rows {
-            let mut source_reader = XML_Reader::from_str(r.get(1).unwrap().get_string().unwrap_or_default());
-            let mut target_reader = XML_Reader::from_str(r.get(2).unwrap().get_string().unwrap_or_default());
-
             let id = r.get(0).unwrap().to_string();
+            let source_value = r.get(1).unwrap().to_string();
+            let target_value = r.get(2).unwrap().to_string();
+
+            let mut source_reader = XML_Reader::from_str(&source_value);
+            let mut target_reader = XML_Reader::from_str(&target_value);
+
             let source = SegNode::parse_inline(&mut source_reader, &mut buffer);
             let target = SegNode::parse_inline(&mut target_reader, &mut buffer);
             sn += 1;
