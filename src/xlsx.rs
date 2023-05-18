@@ -42,12 +42,13 @@ impl TranslationXlsx {
 
         let mut trans_unit_rows = first_sheet.1.rows();
 
-        self.src_language = trans_unit_rows.next().unwrap()[1]
+        let header = trans_unit_rows.next().unwrap();
+        self.src_language = header[1]
             .get_string()
             .unwrap()
             .to_string()
             .to_lowercase();
-        self.tgt_language = trans_unit_rows.next().unwrap()[2]
+        self.tgt_language = header[2]
             .get_string()
             .unwrap()
             .to_string()
@@ -56,10 +57,10 @@ impl TranslationXlsx {
         let mut buffer = Vec::new();
 
         for r in trans_unit_rows {
-            let mut source_reader = XML_Reader::from_str(r.get(1).unwrap().get_string().unwrap());
-            let mut target_reader = XML_Reader::from_str(r.get(2).unwrap().get_string().unwrap());
+            let mut source_reader = XML_Reader::from_str(r.get(1).unwrap().get_string().unwrap_or_default());
+            let mut target_reader = XML_Reader::from_str(r.get(2).unwrap().get_string().unwrap_or_default());
 
-            let id = r.get(0).unwrap().get_string().unwrap().to_string();
+            let id = r.get(0).unwrap().to_string();
             let source = SegNode::parse_inline(&mut source_reader, &mut buffer);
             let target = SegNode::parse_inline(&mut target_reader, &mut buffer);
             sn += 1;
