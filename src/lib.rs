@@ -147,10 +147,17 @@ impl IsTranslationXML for xlsx::TranslationXlsx {
 
 pub fn read_file_with_parser(path: &PathBuf) -> Box<dyn IsTranslationXML> {
     match path.extension().unwrap().to_str().unwrap() {
-        "xliff" | "xlf" | "txlf" | "sdlxliff" => {
+        "xliff" | "xlf" | "txlf" | "sdlxliff" | "mxliff" | "mqxliff" => {
             Box::new(xliff::XliffFile::new(path.to_str().unwrap()))
         }
-        "xlz" => Box::new(xliff::XliffFile::new_xlz(path.to_str().unwrap())),
+        "xlz" => Box::new(xliff::XliffFile::new_zipped(
+            path.to_str().unwrap(),
+            "content.xlf",
+        )),
+        "mqxlz" => Box::new(xliff::XliffFile::new_zipped(
+            path.to_str().unwrap(),
+            "document.mqxliff",
+        )),
         "tmx" => Box::new(tmx::TmxFile::new(path.to_str().unwrap())),
         "tbx" => Box::new(tbx::TbxFile::new(path.to_str().unwrap())),
         "xlsx" => Box::new(xlsx::TranslationXlsx::new(path.to_str().unwrap())),
