@@ -45,15 +45,15 @@ impl XliffFile {
         return xliff_file;
     }
 
-    pub fn new_xlz(path: &str) -> XliffFile {
-        let xlzfile = std::fs::File::open(&path).expect("Cannot open xlz file!");
+    pub fn new_zipped(path: &str, inner_xliff_name: &str) -> XliffFile {
+        let zipped_file = std::fs::File::open(&path).expect("Cannot open zipped file!");
 
-        let mut archive = zip::ZipArchive::new(xlzfile).expect("Invalid xlz file!");
+        let mut archive = zip::ZipArchive::new(zipped_file).expect("Invalid zip file!");
 
-        let mut file = match archive.by_name("content.xlf") {
+        let mut file = match archive.by_name(inner_xliff_name) {
             Ok(file) => file,
             Err(_) => {
-                panic!("content.xlf not found in xlz file")
+                panic!("{} not found in zipped file", inner_xliff_name)
             }
         };
 
