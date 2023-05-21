@@ -53,6 +53,7 @@ pub trait GetMeta {
 
 pub trait SearchString {
     fn match_string<'a>(&'a self, text: &'a str) -> Option<String>;
+    fn count_matches<'a>(&'a self, text: &'a str) -> usize;
     fn as_any(&self) -> &dyn Any;
 }
 
@@ -63,6 +64,10 @@ impl SearchString for String {
         } else {
             return None;
         }
+    }
+
+    fn count_matches<'a>(&'a self, text: &'a str) -> usize {
+        return text.matches(self).count();
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -77,6 +82,10 @@ impl SearchString for Regex {
         } else {
             return None;
         }
+    }
+
+    fn count_matches<'a>(&'a self, text: &'a str) -> usize {
+        return self.find_iter(text).count();
     }
 
     fn as_any(&self) -> &dyn Any {
