@@ -122,6 +122,9 @@ impl XliffFile {
                             cur_trans_unit.target = cur_target;
                         }
                     }
+                    b"alt-trans" => {
+                        reader.read_to_end(e.name()).unwrap();
+                    }
                     _ => (),
                 },
                 Ok(Event::End(e)) => match e.name().as_ref() {
