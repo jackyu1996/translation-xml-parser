@@ -23,7 +23,13 @@ pub struct MetaInfo<'a> {
 impl<'a> fmt::Display for MetaInfo<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for k in self.languages.keys() {
-            write!(f, "{} with {} entries\n", k, self.languages.get(k).unwrap()).unwrap()
+            write!(
+                f,
+                "{} with {} entries\n",
+                k,
+                self.languages.get(k).unwrap_or(&0)
+            )
+            .unwrap_or_default()
         }
         Ok(())
     }
@@ -37,10 +43,10 @@ pub struct MatchResult {
 
 impl fmt::Display for MatchResult {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}: \"{}\"\n", self.matched, self.text).unwrap();
-        write!(f, "Extra info:\n").unwrap();
+        write!(f, "{}: \"{}\"\n", self.matched, self.text).unwrap_or_default();
+        write!(f, "Extra info:\n").unwrap_or_default();
         for e in &self.extra {
-            write!(f, "\t\"{}\"\n", e).unwrap();
+            write!(f, "\t\"{}\"\n", e).unwrap_or_default();
         }
         Ok(())
     }
@@ -77,7 +83,7 @@ impl SearchString for String {
 
 impl SearchString for Regex {
     fn match_string<'a>(&'a self, text: &'a str) -> Option<String> {
-        if let Some(first_match) = self.find(text).unwrap() {
+        if let Some(first_match) = self.find(text).unwrap_or_default() {
             return Some(first_match.as_str().to_string());
         } else {
             return None;
@@ -155,21 +161,28 @@ impl IsTranslationXML for xlsx::TranslationXlsx {
 }
 
 pub fn read_file_with_parser(path: &PathBuf) -> Box<dyn IsTranslationXML> {
-    match path.extension().unwrap().to_str().unwrap() {
+    match path
+        .extension()
+        .unwrap_or_default()
+        .to_str()
+        .unwrap_or_default()
+    {
         "xliff" | "xlf" | "txlf" | "sdlxliff" | "mxliff" | "mqxliff" => {
-            Box::new(xliff::XliffFile::new(path.to_str().unwrap()))
+            Box::new(xliff::XliffFile::new(path.to_str().unwrap_or_default()))
         }
         "xlz" => Box::new(xliff::XliffFile::new_zipped(
-            path.to_str().unwrap(),
+            path.to_str().unwrap_or_default(),
             "content.xlf",
         )),
         "mqxlz" => Box::new(xliff::XliffFile::new_zipped(
-            path.to_str().unwrap(),
+            path.to_str().unwrap_or_default(),
             "document.mqxliff",
         )),
-        "tmx" => Box::new(tmx::TmxFile::new(path.to_str().unwrap())),
-        "tbx" => Box::new(tbx::TbxFile::new(path.to_str().unwrap())),
-        "xlsx" => Box::new(xlsx::TranslationXlsx::new(path.to_str().unwrap())),
+        "tmx" => Box::new(tmx::TmxFile::new(path.to_str().unwrap_or_default())),
+        "tbx" => Box::new(tbx::TbxFile::new(path.to_str().unwrap_or_default())),
+        "xlsx" => Box::new(xlsx::TranslationXlsx::new(
+            path.to_str().unwrap_or_default(),
+        )),
         _ => panic!("Unsupported file type"), // use a cli-compliant way to panic
     }
 }
@@ -209,11 +222,17 @@ impl<'a> FromIterator<&'a Box<SegNode>> for String {
         for n in iter {
             match n.as_ref() {
                 SegNode::Text(content) => s.push_str(&Box::new(content)),
-                SegNode::OpenOrCloseNode { content, .. } => s.push_str(
-                    &unescape(&content.iter().collect::<String>())
-                        .unwrap()
-                        .to_owned(),
-                ),
+                SegNode::OpenOrCloseNode { content, .. } => {
+                    let mut node_text = String::default();
+
+                    let content = content.iter().collect::<String>();
+                    match unescape(&content) {
+                        Ok(text) => node_text = text.to_string(),
+                        Err(e) => eprintln!("Error escaping text '{}': {:?}", &content, e),
+                    }
+
+                    s.push_str(&node_text)
+                }
                 SegNode::SelfClosingNode { .. } => s.push_str(""),
             }
         }
@@ -233,7 +252,8 @@ impl SegNode {
                     b"bpt" | b"ept" | b"ph" | b"g" | b"mrk" => {
                         let node_type = String::from_utf8_lossy(e.name().as_ref()).to_string();
                         let attributes = crate::get_attributes(&reader, &e);
-                        let recurse_content = reader.read_text(e.name()).unwrap().into_owned();
+                        let recurse_content =
+                            reader.read_text(e.name()).unwrap_or_default().into_owned();
                         if recurse_content.contains(['<', '>']) {
                             let mut recurse_reader = Reader::from_str(&recurse_content);
                             nodes.push(Box::new(SegNode::OpenOrCloseNode {
@@ -263,10 +283,17 @@ impl SegNode {
                     _ => (),
                 },
                 Ok(Event::Text(e)) => {
-                    nodes.push(Box::new(SegNode::Text(e.unescape().unwrap().into_owned())))
+                    let mut node_text = String::default();
+
+                    match e.unescape() {
+                        Ok(text) => node_text = text.to_string(),
+                        Err(e) => eprintln!("Error escaping text '{}': {:?}", &node_text, e),
+                    }
+
+                    nodes.push(Box::new(SegNode::Text(node_text)))
                 }
                 Ok(Event::End(e)) => match e.name().as_ref() {
-                    // note: you have to add end tag here to break
+                    // NOTE: you have to add end tag here to break
                     b"source" | b"target" | b"seg" | b"term" => {
                         return nodes;
                     }
@@ -301,9 +328,15 @@ pub fn get_attributes(reader: &Reader<&[u8]>, start: &BytesStart) -> HashMap<Str
 
     for i in start.attributes() {
         attributes.insert(
-            String::from_utf8_lossy(i.as_ref().unwrap().key.into_inner()).into_owned(),
+            String::from_utf8_lossy(
+                i.as_ref()
+                    .expect("Failed to borrow convert attribute into reference")
+                    .key
+                    .into_inner(),
+            )
+            .into_owned(),
             i.as_ref()
-                .unwrap()
+                .expect("Failed to convert attribute into reference")
                 .decode_and_unescape_value(reader)
                 .expect("Failed to decode attribute value")
                 .into_owned(),

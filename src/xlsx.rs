@@ -33,51 +33,56 @@ impl TranslationXlsx {
 
     fn parse(&mut self) {
         let all_worksheets = self.xlsx.worksheets();
-        let first_sheet = all_worksheets.get(0).unwrap();
-        let mut sn = 0;
 
-        let mut cur_trans_unit;
+        if let Some(first_sheet) = all_worksheets.get(0) {
+            let mut sn = 0;
 
-        println!("Checking {} sheet: {}", self.path, &first_sheet.0);
+            let mut cur_trans_unit;
 
-        let mut trans_unit_rows = first_sheet.1.rows();
+            println!("Checking {} sheet: {}", self.path, &first_sheet.0);
 
-        let header = trans_unit_rows.next().unwrap();
-        self.src_language = header[1]
-            .get_string()
-            .unwrap()
-            .to_string()
-            .to_lowercase();
-        self.tgt_language = header[2]
-            .get_string()
-            .unwrap()
-            .to_string()
-            .to_lowercase();
+            let mut trans_unit_rows = first_sheet.1.rows();
 
-        let mut buffer = Vec::new();
+            let header = trans_unit_rows.next().unwrap_or_default();
+            self.src_language = header[1].get_string().unwrap_or_default().to_string().to_lowercase();
+            self.tgt_language = header[2].get_string().unwrap_or_default().to_string().to_lowercase();
 
-        for r in trans_unit_rows {
-            let id = r.get(0).unwrap().to_string();
-            let source_value = r.get(1).unwrap().to_string();
-            let target_value = r.get(2).unwrap().to_string();
+            let mut buffer = Vec::new();
 
-            let mut source_reader = XML_Reader::from_str(&source_value);
-            let mut target_reader = XML_Reader::from_str(&target_value);
+            for r in trans_unit_rows {
+                let id = r
+                    .get(0)
+                    .unwrap_or(&calamine::DataType::Empty {})
+                    .to_string();
+                let source_value = r
+                    .get(1)
+                    .unwrap_or(&calamine::DataType::Empty {})
+                    .to_string();
+                let target_value = r
+                    .get(2)
+                    .unwrap_or(&calamine::DataType::Empty {})
+                    .to_string();
 
-            let source = SegNode::parse_inline(&mut source_reader, &mut buffer);
-            let target = SegNode::parse_inline(&mut target_reader, &mut buffer);
-            sn += 1;
+                let mut source_reader = XML_Reader::from_str(&source_value);
+                let mut target_reader = XML_Reader::from_str(&target_value);
 
-            cur_trans_unit = TransUnit {
-                id,
-                sn,
-                source,
-                target,
-                translate: "yes".to_string(),
-            };
-            if cur_trans_unit.id != "" {
-                self.trans_units.push(cur_trans_unit)
+                let source = SegNode::parse_inline(&mut source_reader, &mut buffer);
+                let target = SegNode::parse_inline(&mut target_reader, &mut buffer);
+                sn += 1;
+
+                cur_trans_unit = TransUnit {
+                    id,
+                    sn,
+                    source,
+                    target,
+                    translate: "yes".to_string(),
+                };
+                if cur_trans_unit.id != "" {
+                    self.trans_units.push(cur_trans_unit)
+                }
             }
+        } else {
+            eprintln!("First worksheet not found!");
         }
     }
 }

@@ -122,9 +122,10 @@ impl XliffFile {
                             cur_trans_unit.target = cur_target;
                         }
                     }
-                    b"alt-trans" => {
-                        reader.read_to_end(e.name()).unwrap();
-                    }
+                    b"alt-trans" => match reader.read_to_end(e.name()) {
+                        Ok(_range) => (),
+                        Err(e) => eprintln!("Error parsing alt-trans tag at {}: {:?}", reader.buffer_position(), e),
+                    },
                     _ => (),
                 },
                 Ok(Event::End(e)) => match e.name().as_ref() {
