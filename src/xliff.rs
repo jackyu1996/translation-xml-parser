@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use std::io::prelude::*;
+use std::process::exit;
 use zip;
 
 #[derive(Debug, Clone)]
@@ -46,21 +47,39 @@ impl XliffFile {
     }
 
     pub fn new_zipped(path: &str, inner_xliff_name: &str) -> XliffFile {
-        let zipped_file = std::fs::File::open(&path).expect("Cannot open zipped file!");
+        let zipped_file = match std::fs::File::open(&path) {
+            Ok(file) => file,
+            Err(e) => {
+                eprintln!("Failed to open {}: {:?}", path, e);
+                exit(1);
+            }
+        };
 
-        let mut archive = zip::ZipArchive::new(zipped_file).expect("Invalid zip file!");
+        let mut archive = match zip::ZipArchive::new(zipped_file) {
+            Ok(zipped) => zipped,
+            Err(_e) => {
+                eprintln!("Invalid zip file {}", path);
+                exit(2);
+            }
+        };
 
         let mut file = match archive.by_name(inner_xliff_name) {
             Ok(file) => file,
             Err(_) => {
-                panic!("{} not found in zipped file", inner_xliff_name)
+                eprintln!("{} not found in zipped file", inner_xliff_name);
+                exit(3);
             }
         };
 
         let mut contents = String::new();
 
-        file.read_to_string(&mut contents)
-            .expect("Failed to read into a string");
+        match file.read_to_string(&mut contents) {
+            Ok(..) => (),
+            Err(..) => {
+                eprintln!("Failed to read {} into a string", path);
+                exit(4);
+            }
+        }
 
         let mut xliff_file = XliffFile {
             path: path.to_owned(),
@@ -89,19 +108,19 @@ impl XliffFile {
                     b"file" => {
                         cur_xfile.src_language = crate::get_attributes(&reader, &e)
                             .get("source-language")
-                            .expect("source-language attribute not found")
+                            .unwrap_or(&String::new())
                             .to_owned()
                             .to_lowercase();
                         cur_xfile.tgt_language = crate::get_attributes(&reader, &e)
                             .get("target-language")
-                            .expect("target-language attribute not found")
+                            .unwrap_or(&String::new())
                             .to_owned()
                             .to_lowercase();
                     }
                     b"trans-unit" => {
                         cur_trans_unit.id = crate::get_attributes(&reader, &e)
                             .get("id")
-                            .expect("id attribute not found")
+                            .unwrap_or(&String::new())
                             .to_owned();
                         sn += 1;
                         cur_trans_unit.sn = sn;
@@ -124,7 +143,11 @@ impl XliffFile {
                     }
                     b"alt-trans" => match reader.read_to_end(e.name()) {
                         Ok(_range) => (),
-                        Err(e) => eprintln!("Error parsing alt-trans tag at {}: {:?}", reader.buffer_position(), e),
+                        Err(e) => eprintln!(
+                            "Error parsing alt-trans tag at {}: {:?}",
+                            reader.buffer_position(),
+                            e
+                        ),
                     },
                     _ => (),
                 },

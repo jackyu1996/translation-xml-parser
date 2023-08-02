@@ -1,7 +1,7 @@
 use crate::{
     search_in_transunits, GetMeta, MatchResult, MetaInfo, SearchInFile, SearchString, SegNode,
 };
-use std::{collections::HashMap, fs::File, io::BufReader};
+use std::{collections::HashMap, fs::File, io::BufReader, process::exit};
 
 use calamine::{open_workbook, Reader, Xlsx};
 use quick_xml::Reader as XML_Reader;
@@ -18,7 +18,13 @@ pub struct TranslationXlsx {
 
 impl TranslationXlsx {
     pub fn new(path: &str) -> TranslationXlsx {
-        let workbook: Xlsx<_> = open_workbook(path).expect("Cannot open xlsx file");
+        let workbook: Xlsx<_> = match open_workbook(path) {
+            Ok(workbook) => workbook,
+            Err(e) => {
+                eprintln!("Failed to open xlsx file {} {:?}", path, e);
+                exit(1);
+            }
+        };
 
         let mut translation_xlsx = TranslationXlsx {
             path: path.to_owned(),
@@ -44,8 +50,16 @@ impl TranslationXlsx {
             let mut trans_unit_rows = first_sheet.1.rows();
 
             let header = trans_unit_rows.next().unwrap_or_default();
-            self.src_language = header[1].get_string().unwrap_or_default().to_string().to_lowercase();
-            self.tgt_language = header[2].get_string().unwrap_or_default().to_string().to_lowercase();
+            self.src_language = header[1]
+                .get_string()
+                .unwrap_or_default()
+                .to_string()
+                .to_lowercase();
+            self.tgt_language = header[2]
+                .get_string()
+                .unwrap_or_default()
+                .to_string()
+                .to_lowercase();
 
             let mut buffer = Vec::new();
 

@@ -15,6 +15,7 @@ use std::fmt;
 use std::fs::File;
 use std::io::Read;
 use std::path::PathBuf;
+use std::process::exit;
 
 pub struct MetaInfo<'a> {
     languages: HashMap<&'a str, usize>,
@@ -308,10 +309,23 @@ impl SegNode {
 }
 
 pub fn read_to_string(path: &str) -> String {
-    let mut file = File::open(path).expect("Cannot read input file!");
+    let mut file = match File::open(&path) {
+        Ok(file) => file,
+        Err(e) => {
+            eprintln!("Failed to open {}: {:?}", path, e);
+            exit(1);
+        }
+    };
+
     let mut content = String::new();
-    file.read_to_string(&mut content)
-        .expect("Cannot read file to a string!");
+
+    match file.read_to_string(&mut content) {
+        Ok(..) => (),
+        Err(..) => {
+            eprintln!("Failed to read {} into a string", path);
+            exit(4);
+        }
+    }
 
     return content;
 }
@@ -327,18 +341,22 @@ pub fn get_attributes(reader: &Reader<&[u8]>, start: &BytesStart) -> HashMap<Str
     let mut attributes = HashMap::new();
 
     for i in start.attributes() {
+        let attribute = match i.as_ref() {
+            Ok(attr) => attr,
+            Err(e) => {
+                eprintln!(
+                    "Failed to reference attribute at {} {:?}",
+                    reader.buffer_position(),
+                    e
+                );
+                exit(2);
+            }
+        };
         attributes.insert(
-            String::from_utf8_lossy(
-                i.as_ref()
-                    .expect("Failed to borrow convert attribute into reference")
-                    .key
-                    .into_inner(),
-            )
-            .into_owned(),
-            i.as_ref()
-                .expect("Failed to convert attribute into reference")
+            String::from_utf8_lossy(attribute.key.into_inner()).into_owned(),
+            attribute
                 .decode_and_unescape_value(reader)
-                .expect("Failed to decode attribute value")
+                .unwrap_or_default()
                 .into_owned(),
         );
     }
